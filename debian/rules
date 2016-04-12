@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+
+%:
+	dh $@ --with python2 --namespace dnsknife
+
+# Uncomment if you have .mo file to compile in the package
+#
+#override_dh_auto_build:
+# python setup.py compile_catalog
+# dh_auto_build
+#
+#.PHONY: override_dh_auto_build
+

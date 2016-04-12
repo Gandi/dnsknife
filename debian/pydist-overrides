@@ -1,0 +1,5 @@
+# Required until debian generates metadata-1.1 or 1.2 egg_info
+requests python-requests
+PySocks python-pysocks
+dnspython python-dnspython
+pycrypto python-crypto
