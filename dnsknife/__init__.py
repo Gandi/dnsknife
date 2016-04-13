@@ -27,10 +27,16 @@ import dns.rcode
 import dns.rdataclass
 import dns.rdatatype
 import dns.resolver
-import socks
+try:
+    import socks
+    __socks_available = True
+except ImportError:
+    __socks_available = False
+
 
 from . import exceptions
 from . import monkeypatch  # noqa
+
 
 __version__ = '0.1'
 
@@ -45,6 +51,9 @@ def set_nameservers(ns):
 
 
 def set_socks5_server(addr, port=1080, username=None, password=None):
+    if not __socks_available:
+        raise ImportError('No module named socks')
+
     socks.set_default_proxy(socks.SOCKS5, addr, port, False, username,
                             password)
     _config['socks'] = socks
