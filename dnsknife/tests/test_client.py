@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import socket
 import unittest
 
@@ -8,14 +10,14 @@ import dns.resolver
 import dns.rrset
 
 import mock
-import socks
 
 import dnsknife
 
+
 class TestClient(unittest.TestCase):
+
     def setUp(self):
         pass
-        #dnsknife._config['resolver'].nameservers = ['1.2.3.4']
 
     def getaddrinfo(*args):
         return [(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP,
@@ -40,33 +42,40 @@ class TestClient(unittest.TestCase):
     def test_socks_not_used_for_NS(self):
         dnsknife.set_socks5_server('localhost')
         with mock.patch('socks.socksocket') as mock_socks, \
-             mock.patch('dns.query.udp', side_effect=self.reply) as mock_udp, \
-             mock.patch('dns.query.tcp', side_effect=self.reply) as mock_tcp, \
-             mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
+            mock.patch('dns.query.udp', side_effect=self.reply) as mock_udp, \
+            mock.patch('dns.query.tcp', side_effect=self.reply) as mock_tcp, \
+            mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
                 as mock_socket:
-                 dnsknife.query('example.com', dns.rdatatype.A)
-                 assert mock_socks.call_count == 0
-                 assert mock_udp.call_count == 1
+            dnsknife.query('example.com', dns.rdatatype.A)
+            assert mock_socket.call_count == 0
+            assert mock_socks.call_count == 0
+            assert mock_udp.call_count == 1
+            assert mock_tcp.call_count == 0
 
     def test_ns_called(self):
         c = dnsknife.Checker('test.com')
-        with mock.patch('socks.socksocket') as mock_socks, \
-             mock.patch('dns.query.udp', side_effect=self.reply) as mock_udp, \
-             mock.patch('dns.query.tcp', side_effect=self.reply) as mock_tcp, \
-             mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
+        with mock.patch('socks.socksocket'), \
+                mock.patch('dns.query.udp', side_effect=self.reply) \
+                as mock_udp, \
+                mock.patch('dns.query.tcp', side_effect=self.reply) \
+                as mock_tcp, \
+                mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo)\
                 as mock_socket:
-                c.query('test.com', 'NS')
-                self.assertEqual(mock_udp.call_args[0][1], '1.2.3.4')
+            c.query('test.com', 'NS')
+            self.assertEqual(mock_udp.call_args[0][1], '1.2.3.4')
+            assert mock_socket.call_count == 1
+            assert mock_tcp.call_count == 0
 
     def test_socks_used_for_direct(self):
         dnsknife.set_socks5_server('localhost')
         c = dnsknife.Checker('test.com', direct=True)
         with mock.patch('socks.socksocket') as mock_socks, \
-             mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
+            mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
                 as mock_socket:
                     try:
                         c.query('test.com', 'A')
                     except:
                         # Socket None, will fail. But test is about socks
                         pass
+                    assert mock_socket.call_count == 1
                     assert mock_socks.call_count == 1

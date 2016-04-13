@@ -13,6 +13,8 @@ Optional support and dependency on PySocks for socks5
 proxy support.
 """
 
+from __future__ import absolute_import
+
 import socket
 
 import dns.dnssec
@@ -27,20 +29,26 @@ import dns.rdatatype
 import dns.resolver
 import socks
 
-import exceptions
-import monkeypatch
+from . import exceptions
+from . import monkeypatch  # noqa
+
+__version__ = '0.1'
 
 _config = {
     'resolver': dns.resolver.Resolver(),
     'socks': None
 }
 
+
 def set_nameservers(ns):
     _config['resolver'].nameservers = ns
 
+
 def set_socks5_server(addr, port=1080, username=None, password=None):
-    socks.set_default_proxy(socks.SOCKS5, addr, port, False, username, password)
+    socks.set_default_proxy(socks.SOCKS5, addr, port, False, username,
+                            password)
     _config['socks'] = socks
+
 
 def query(name, rdtype, dnssec=False):
     """Lookup. Using the locally configured resolvers
@@ -63,17 +71,19 @@ def query(name, rdtype, dnssec=False):
 
     return answer
 
+
 def ns_addr_insecure(nameserver):
     """Find the nameserver's possible IP addresses. No DNSSEC
     is required here, we'll just validate the end result."""
     ans = []
     for family, socktype, proto, name, sockaddr in \
-        socket.getaddrinfo(nameserver, 53):
+            socket.getaddrinfo(nameserver, 53):
         if proto == socket.IPPROTO_UDP:
             ans.append(sockaddr[0])
     if len(ans) == 0:
         raise exceptions.NsLookupError(nameserver)
     return ans
+
 
 def rrset_rrsig(response):
     """Split and return rrsig and rrset from answer"""
@@ -84,6 +94,7 @@ def rrset_rrsig(response):
                                 dns.rdataclass.IN, response.question[0].rdtype)
 
     return rrset, rrsig
+
 
 def signers(response):
     """Takes a response, and return signer names and key_tags.
@@ -105,6 +116,7 @@ def signers(response):
 
     return ret
 
+
 def signed_by(response, dnskey):
     """Checks that a given answer has been signed by the given
     dns Key object."""
@@ -119,6 +131,7 @@ def signed_by(response, dnskey):
                 pass
     return False
 
+
 def trusted(response):
     """Check if one signer in the answer is trusted"""
     for signer in signers(response).keys():
@@ -129,6 +142,7 @@ def trusted(response):
 
 
 class Checker:
+
     def __init__(self, domain, dnssec=False, direct=True,
                  errors=None, nameservers=None):
         self.domain = domain
@@ -250,7 +264,7 @@ class Checker:
         else:
             ans = self.query(name, dns.rdatatype.URI)
 
-        #XXX Might use target once dnspython follows URI RFC
+        # XXX Might use target once dnspython follows URI RFC
         return ans.rrset[0].data[4:]
 
     def tpda_endpoint(self, name):
@@ -260,7 +274,7 @@ class Checker:
             try:
                 # Cheat
                 return self.uri('{}._tpda._tcp.{}'.format(name, ns), False)
-            except (Exception) as e:
+            except:
                 pass
 
     def cdnskey(self):
@@ -295,10 +309,9 @@ class Checker:
             # 3.
             if any(key.algorithm == 0 for key in cds):
                 if len(cds) == 1:
-                    ## Special case delete
+                    # Special case delete
                     raise exceptions.DeleteDS
                 else:
                     raise exceptions.BadCDNSKEY('Alg0 and other keys found')
-
 
         return cds_rrset

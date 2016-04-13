@@ -1,21 +1,22 @@
+from __future__ import absolute_import, print_function
+
 import base64
 import datetime
-import posix
 import requests
-import urllib
-import urlparse
+from six.moves.urllib import parse
 
 # TODO: improve key storage/publication
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 
-import dnsknife
-import exceptions
+from . import Checker
+from . import exceptions
+
 
 def _qsl_get_one(qstring, param):
     """Return one unique param from query string"""
-    args = urlparse.parse_qsl(qstring)
+    args = parse.parse_qsl(qstring)
     sigvals = [arg[1] for arg in args if arg[0] == param]
 
     if len(sigvals) != 1:
@@ -23,37 +24,38 @@ def _qsl_get_one(qstring, param):
 
     return sigvals[0]
 
+
 def validate_URI(uri):
     """Walk through an URI, lookup the set of DNSKEYs for the origin
-    third party provider domain, validate URI signature against the 
+    third party provider domain, validate URI signature against the
     found keys. If valid, returns the trustable URI - otherwise raise
     an exception.
 
     /!\ User MUST use the returned URI, as signature validation is
     only done on everything *before* the URI.
     """
-    ## Truncate the signature= part
+    # Truncate the signature= part
     try:
         uri, sig = uri.split('&signature=')
-        sig = urlparse.unquote(sig)
+        sig = parse.unquote(sig)
     except ValueError:
         raise exceptions.IncompleteURI
 
-    pr = urlparse.urlparse(uri)
+    pr = parse.urlparse(uri)
     if not pr.query:
         raise exceptions.IncompleteURI
 
     source = _qsl_get_one(pr.query, 'source')
 
-    checker = dnsknife.Checker(source, dnssec=True)
-    keys = [RSA.importKey(base64.b64decode(txt)) for
-        txt in checker.txt('_tpda').split('\n')]
+    checker = Checker(source, dnssec=True)
+    keys = [RSA.importKey(base64.b64decode(txt.encode('ascii')))
+            for txt in checker.txt('_tpda').split('\n')]
 
     if not keys:
         raise exceptions.NoTPDA
 
     digest = SHA256.new()
-    digest.update(uri)
+    digest.update(uri.encode('ascii'))
 
     for key in keys:
         signer = PKCS1_v1_5.new(key)
@@ -62,11 +64,14 @@ def validate_URI(uri):
 
     raise exceptions.NoSignatureMatch
 
+
 # Uses RDAP
 class ServiceLocator:
+
     """Uses RDAP to find the registrar for a domain,
     registrar service URLs, or third party DNS operator
     service URLs"""
+
     def __init__(self, baseURI, timeout=5):
         self.baseURI = baseURI
         self.timeout = timeout
@@ -92,12 +97,15 @@ class ServiceLocator:
 
         return uri
 
-#XXX Well.
+
+# XXX Well.
 STATIC_RDAP_SERVICES = [
     'http://rdap.gandi.net'
 ]
 
+
 class Client:
+
     """
     TPDA Client for third party service providers.
     Example usage:
@@ -108,39 +116,41 @@ class Client:
     tpda.Client('thirdparty.example.com','test.key').nameservers_uri(
                'client.example.com', ['ns1.example.com','ns2.example.com'])
     """
+
     def __init__(self, domain, key, lease_time=86400):
         """Initialize a TPDA client. `domain` refers to the client
         domain where the _tpda DNSKEY record should be published.
         `key` is a local path to access this same private key.
         `lease_time` is the signature expiration delay"""
         self.domain = domain
-        self.key = RSA.importKey(file(key).read())
+        self.key = RSA.importKey(open(key).read())
         self.lease_time = lease_time
 
     def key_txt(self):
         """Return text of key"""
-        return base64.b64encode(self.key.publickey().exportKey('DER'))
+        return base64.b64encode(self.key.publickey().exportKey('DER'))\
+                     .decode('ascii')
 
     def txt_record_of_key(self):
         """Dumps RSA key as a TXT record"""
         txt = self.key_txt()
-        strings = [ '"{}"'.format(txt[i:i+65]) for i in 
-            range(0, len(txt), 65) ]
+        strings = ['"{}"'.format(txt[i:i + 65])
+                   for i in range(0, len(txt), 65)]
         return 'IN TXT {}'.format(" ".join(strings))
 
     def params_for_domain(self, domain):
         """Return the mandatory, common 3rd party parameters for this
         user's domain"""
-        exp = ( datetime.datetime.utcnow() + datetime.timedelta(
+        exp = (datetime.datetime.utcnow() + datetime.timedelta(
             seconds=self.lease_time)).strftime('%Y%m%d%H%M%S')
 
         return (('source', self.domain), ('domain', domain),
-            ('expires', exp))
+                ('expires', exp))
 
     def nameservers_uri(self, domain, ns_list):
         """Return the full signed URI to access this domain operator nameservers
-        setup service, if available. XXX: Implement glue record/ipv4/ipv6 management
-        in here too.
+        setup service, if available. XXX: Implement glue record/ipv4/ipv6
+        management in here too.
 
         For now `ns_list` is simply a list of strings.
         """
@@ -171,17 +181,17 @@ class Client:
                 try:
                     return ServiceLocator(rdap).endpoint(domain, service)
                 except Exception as e:
-                    print e
+                    print(e)
 
         base_url = find(domain, service)
         if not base_url:
             raise exceptions.NoTPDA
 
-        uri = '{}?{}'.format(base_url, urllib.urlencode(params, True))
+        uri = u'{}?{}'.format(base_url, parse.urlencode(params, True))
 
         signer = PKCS1_v1_5.new(self.key)
         digest = SHA256.new()
-        digest.update(uri)
+        digest.update(uri.encode('ascii'))
 
         sig = base64.b64encode(signer.sign(digest))
-        return '{}&{}'.format(uri, urllib.urlencode({'signature': sig}))
+        return '{}&{}'.format(uri, parse.urlencode({'signature': sig}))
