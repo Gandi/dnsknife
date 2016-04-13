@@ -25,6 +25,7 @@ import dns.rcode
 import dns.rdataclass
 import dns.rdatatype
 import dns.resolver
+import socks
 
 import exceptions
 import monkeypatch
@@ -38,7 +39,6 @@ def set_nameservers(ns):
     _config['resolver'].nameservers = ns
 
 def set_socks5_server(addr, port=1080, username=None, password=None):
-    import socks
     socks.set_default_proxy(socks.SOCKS5, addr, port, False, username, password)
     _config['socks'] = socks
 
