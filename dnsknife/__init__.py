@@ -248,7 +248,7 @@ class Checker:
         if self.err_fn:
             self.err_fn(exc)
 
-    def txt(self, name):
+    def txt(self, name=''):
         """Return the txt for name under zone, values joined
         as a string, each record separated by a newline"""
         resp = self.query_relative(name, dns.rdatatype.TXT)
@@ -288,6 +288,33 @@ class Checker:
 
         # XXX Might use target once dnspython follows URI RFC
         return ans.rrset[0].data[4:]
+
+    def mx(self, name=''):
+        """Return the mx set for the domain"""
+        try:
+            mx_set = [rr for rr in self.query_relative(name, 'MX') if
+                      rr.rdtype == dns.rdatatype.MX]
+        except dns.resolver.NoAnswer:
+            return []
+
+        return [rr.exchange.to_text() for rr in
+                sorted(mx_set, None, lambda rr: rr.preference)]
+
+    def txt_spf(self):
+        """Return first TXT/spf record for domain"""
+        try:
+            for rec in self.txt():
+                if rec.startswith('v=spf'):
+                    return rec
+        except dns.resolver.NoAnswer:
+            pass
+
+    def spf(self):
+        try:
+            req = self.query_relative('', 'SPF')
+            return req.rrset[0].to_text()
+        except dns.resolver.NoAnswer:
+            return self.txt_spf()
 
     def tpda_endpoint(self, name):
         """Return the endpoint according to this domain DNS operator

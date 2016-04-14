@@ -9,6 +9,20 @@ Quick overview:
 
     >>> import dnsknife
     >>> ans = dnsknife.query('example.com', 'A', dnssec=True)
+Specific queries shortcuts:
+
+.. code:: python
+
+    >>> print dnsknife.Checker('example.com').mx()
+    []
+
+    >>> print dnsknife.Checker('example.com').spf()
+    None
+
+    >>> print dnsknife.Checker('example.com').txt()
+    $Id: example.com 4415 2015-08-24 20:12:23Z davids $
+    v=spf1 -all
+
 
 Checking a domain TXT record is installed, looking at each domain NS (no
 local caches) for a match:
@@ -26,13 +40,16 @@ It can be used for DNSSEC lookups, implements a few CDS/CDNSKEY drafts:
 
 .. code:: python
 
-    >>> Checker('ten.pm', dnssec=True).cdnskey()
+    >>> c = Checker('example.com')
+    >>> with dnsknife.dnssec(c):
+    >>>     print c.spf()
+    None
+
+    >>> Checker('ten.pm').cdnskey()
 
     ---------------------------------------------------------------------------
     BadCDNSKEY                                Traceback (most recent call last)
-
-    <ipython-input-28-848a43a36fb4> in <module>()
-    ----> 1 Checker('ten.pm', dnssec=True).cdnskey()
+    ...
 
     BadCDNSKEY: 1324 did not sign DNSKEY RR
 
@@ -46,19 +63,15 @@ It also has a few more functions for DNSSEC checks:
     >>> dnsknife.signed_by(ans, keys[0])
     True
 
-
 .. code:: python
 
     >>> dnsknife.signers(dnsknife.Checker('pm.', dnssec=True).query('pm.', 'DNSKEY'))
     {<DNS name pm.>: [35968, 60859]}
 
-
-
 .. code:: python
 
     >>> dnsknife.trusted(ans)
     True
-
 
 
 Finally it implements TPDA - the draft can be found in the repo.
@@ -84,3 +97,4 @@ A DNS operator/registrar validating inbound params:
 
     >>> tpda.validate_URI(URI)
     'http://partners.gandi.net/nameservers/v1?source=ten.pm&domain=whe.re&expires=20160415000918&ns=ns1.ten.pm&ns=ns2.ten.pm'
+
