@@ -117,7 +117,7 @@ class Client:
                'client.example.com', ['ns1.example.com','ns2.example.com'])
     """
 
-    def __init__(self, domain, key, lease_time=86400):
+    def __init__(self, domain, key, lease_time=86400, override_uri=None):
         """Initialize a TPDA client. `domain` refers to the client
         domain where the _tpda DNSKEY record should be published.
         `key` is a local path to access this same private key.
@@ -125,6 +125,7 @@ class Client:
         self.domain = domain
         self.key = RSA.importKey(open(key).read())
         self.lease_time = lease_time
+        self.override_uri = override_uri
 
     def key_txt(self):
         """Return text of key"""
@@ -183,7 +184,11 @@ class Client:
                 except Exception as e:
                     print(e)
 
-        base_url = find(domain, service)
+        if not self.override_uri:
+            base_url = find(domain, service)
+        else:
+            base_url = self.override_uri
+
         if not base_url:
             raise exceptions.NoTPDA
 

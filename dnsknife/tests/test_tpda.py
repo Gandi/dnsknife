@@ -39,3 +39,14 @@ class TestTPDA(unittest.TestCase):
             url = url.replace('source=domain', 'source=evil')
             self.assertRaises(exceptions.NoSignatureMatch,
                               tpda.validate_URI, url)
+
+    def test_url_gen_override(self):
+        client = tpda.Client('domain.com', '{}/test.key'.format(here),
+                             override_uri='http://localhost:1234')
+        url = client.nameservers_uri('tfz.net', ['ns1.', 'ns2.'])
+
+        assert 'signature' in url
+        assert 'source' in url
+        assert 'expires' in url
+        assert 'ns=' in url
+        assert url.startswith('http://localhost:1234')
