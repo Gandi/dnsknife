@@ -1,0 +1,353 @@
+Providing registrar and DNS operator functions to third party providers
+
+Abstract
+
+A lot of service providers offer end users the ability to setup
+website, email, or application hosting requiring no special
+technical knowledge. As domain names have become a commodity for
+end user, it seems natural to use them to host those services
+in a personalized way.
+
+However, there is currently no easy access to domain name configuration
+from a service provider point of view, and most of them willing to provide
+domain name personalization have to guide their end users through "per-registrar"
+and per-zone-operator documentation, implement per-registrar specific APIs,
+or become registrar resellers to achieve this.
+
+We aim at closing this gap and provide service providers with methods
+allowing end to end configuration from application to domain name
+zone setup.
+
+Definitions
+
+- User: the end user, willing to host a service on their domain name
+
+- Third party provider: online service providing user with an hosted application,
+such as email hosting, DNS hosting, web hosting providers.
+
+- DNS operator: the entity managing and configuring DNS for the end user domain.
+
+- Registrar: the registrar provides Registrar services as defined below. Registrars
+are often the DNS operator for domains they host.
+
+- The DNS operator is a Third party provider of DNS services when it talks
+to a Registrar for DNSSEC activation or NS changes to a domain.
+
+Table of contents
+
+1. Use cases
+1.1 Configuration of a new domain service
+1.2 Becoming the DNS operator
+1.3 Enabling DNSSEC on the zone
+1.4 Managing DNSSEC rollover
+2. Proposed mode of operation
+3. Endpoint location discovery
+3.1 Registrar endpoint location
+3.2 DNS Operator endpoint location
+3.2.1 DNS Operator nameserver setup
+3.2.2 Discovery and inclusion in the RDAP answer
+4. Identification of the Third party provider
+4.1 Publication of a Third party provider signing key
+4.1.a Use of a DNSKEY record
+4.1.b Use of a KEY record
+4.1.c Use of DANE raw public key as per draft-ietf-dane-rawkeys
+4.1.d Use of a TXT record with DER-encoded ASN.1 SubjectPublicKeyInfo
+4.2 Redirecting user to Registrar or DNS Operator access point
+4.3 Registrar or DNS Operator validation of an incoming request
+5. Types of provided service
+5.1 NAMESERVERS: Change of domain nameservers (registrar level)
+5.2 DNSSEC: Setup of initial DNSSEC configuration (registrar level)
+5.3 CDSCHECK: Manage key rollover (registrar level)
+5.4 RECORD
+6. Availability/limitations
+
+1. Use cases
+
+In all use cases below, we try to achieve the following:
+
+- Have the user confirm the change in an explicit way, clearly identifying
+  the Third party provider requesting it.
+
+- Provide Third party providers with an automated way of identifying the
+  DNS operator and Registrar for a domain.
+
+- Allow the registrar and DNS operator to identify the Third party provider
+  requesting a change to domain configuration
+
+- Remove the need for the Third party provider to implement multiple per-registrar
+  specific interfaces, or configure multiple per-registrar tokens and secrets -
+  and simplify integration at the registrar level.
+
+Below are the typical use cases covered:
+
+1.1 Configuration of a new domain service
+
+The Third party provider wants to write to the user's domain zone. The DNS operator
+wants the user to confirm this change, prompting the user with the Third party provider's
+name. The user should use their DNS operator's credentials to achieve this configuration,
+and give their approval.
+
+Example stories:
+
+- Removing all existing @ IN MX records for the zone, and replacing them with the Third
+  party servers.
+
+- Configuring '@ IN A' to the Third party server
+
+- Replacing 'www' RRs with a CNAME to the Third party server
+
+1.2 Becoming the DNS operator
+
+The Third party provider requests the domain name NS servers to be changed to its hosted
+NS service. This requires contacting the Registrar for the change. This requires user
+approval.
+
+1.3 Enabling DNSSEC on the zone
+
+The DNS operator for the zone, needs to enable DNSSEC on the domain. This requires contacting
+the Registrar and pushing the first DS on the zone. This requires user approval.
+
+1.4 Managing DNSSEC rollover
+
+The DNS operator for the zone also needs to manage DNSSEC rollover. As requiring the user
+approval is not convenient for this operation, this should rely on a secure mechanism such as
+CDS/CDNSKEY publication and only requires identifying the registrar endpoint for that purpose.
+
+2. Proposed mode of operation
+
+We suggest using standardized services (registrar, DNS operator based) for each use case,
+an RDAP-based discovery of the (registrar or dns operator) service endpoints, and a method
+for user approval.
+
+In some cases, the DNS operator or Third party provider simply requires to directly contact
+the service. This is the case with CDSCHECK where the DNS Operator simply needs to know the
+URL for the registrar CDSCHECK service.
+
+In other cases, the user needs to be redirected to an URL for secure sign-on, and approve
+the change the 3rd party operator is proposing. We suggest using signatures to authenticate
+the 3rd party operator message and to be able to identify it strongly on the confirmation
+page.
+
+While this might be extra burden, it also probably avoids a few cross-site/fishing
+scenarios and at least ensures the parameters are generated by the responsible 3rd party.
+
+3. Endpoint location discovery
+
+3.1 Registrar endpoint location
+
+The registrar endpoint is discovered using RDAP.
+A specific rdapConformance (eg. tpda_api_0) at the registrar level is used to
+declare that the registrar supports a compliant endpoint for those calls.
+
+The different calls are described in the following proposed json structure, according
+to the names defined further below (see section 4. below)
+
+'tpda_endpoints' : {
+    'nameservers': '<registrar ns endpoint URI>',
+    'dnssec': '<registrar endpoint URI>',
+    'cdscheck': '<another endpoint URI>',
+}
+
+3.2 DNS Operator endpoint location
+
+The registrar might be DNS operator for the zone, in which case it may declare its own
+DNS Operator related endpoints in the RDAP response. In the case where the DNS operator
+is another party, the registrar should discover and include their endpoints in the
+RDAP response. We suggest the registrar also discover its own endpoints using the following
+principles.
+
+3.2.1 DNS Operator nameserver setup
+
+For each DNS Operator nameserver, DNS Operator adds a service name under the '_tpda._tcp'
+nameserver fully qualified name with a record type of URI (rfc7553).
+
+For ns1.example.com having two DNS Operator services svc1 and svc2:
+
+    svc1._tpda._tcp.ns1.example.com IN URI 10 1 "https://example.com/svc1/v1"
+    svc2._tpda._tcp.ns1.example.com IN URI 10 1 "https://example.com/svc2/v3"
+
+3.2.2 Discovery and inclusion in the RDAP answer
+
+The domain name registrar performs an URI lookup for all nameservers declared on the
+domain. All declared URIs are included in the 'endpoints' section of the RDAP JSON answer
+declared above. This way, locating the DNS-related services is automatic for the
+3rd party provider, without requiring knowledge of any specific DNS operator.
+
+4. Identification of the Third party provider
+
+To formally identify the request as being issued by the third party provider, we propose to
+use public key cryptography as defined below. For that purpose, we suggest that domain
+names are used to identify the Third party provider, and delegate securing this to DNSSEC.
+
+4.1 Publication of a Third party provider signing key
+
+The third party provider generates and maintain a key to sign requests.
+
+Publication of the key is made to the DNS, under the public name that will be presented
+to the user when prompted for validation.
+
+The key publication format still requires work
+
+4.1.a Use of a DNSKEY record
+
+We thought of publishing the following kind of record:
+
+    _tpda       IN  DNSKEY  /.../
+
+However DNSSEC record types are only usefull for DNSSEC, implementation assume
+DS publications for delegations, it seems hard to publish a DNSKEY record and sign
+it without having complex setups.
+
+Adding the key to zone apex, with flags 0 (other DNSSEC usage) - and referring to
+the key through a TXT record. But 3rd party DNS operator APIs might restrict usage
+of this record.
+
+4.1.b Use of a KEY record
+
+Ignoring RFC3445 - publication of a KEY record.
+However 3rd party DNS operator APIs might restrict usage of this record.
+
+4.1.c Use of DANE raw public key as per draft-ietf-dane-rawkeys
+
+TLSA certificate usage / keying material usage of 3 (domain-provided), a selector
+of 1 (SubjectPublicKeyInfo), and a matching type of 0.
+
+4.1.d Use of a TXT record with DER-encoded ASN.1 SubjectPublicKeyInfo
+
+Offering ease of publication on third party APIs. This is the method implemented
+in the proof of concept platform (see last section).
+
+4.2 Redirecting user to Registrar or DNS Operator access point
+
+In all the use cases defined above (but 1.4), the Third party provider redirects
+the user to the Registrar or DNS Operator service endpoint and signs the request
+using one of the valid, not expired, dns published KEYs.
+
+The signature authenticates the request as coming from the Third party provider.
+
+This allows the Registrar to optionnaly refuse change from unknown providers, and
+ensures the DNS operator had control over the proposed configuration change to be prompted
+to the user.
+
+An expiration date avoids replaying obsolete configuration.
+
+The format for all requests is a standard URI query string defining the following
+mandatory parameters:
+
+    source=value   The domain name prompted to the user, defining the Third party service
+    domain=value   The user domain name to modify
+    expires=value  The expiration date for this change
+    signature=value The Signature (TBD- if RSA, PKCS#1 v2, ..) covering the full URI. This
+                    parameter must be the last one on the URI.
+
+All other parameters are used and defined in each use case specifics below.
+
+4.3 Registrar or DNS Operator validation of an incoming request
+
+The registrar must perform the following step upon receipt of a request:
+
+ 1. Verify source, domain, signature are present
+ 2. Validate expiration date
+ 3. Lookup _tpda in the third party provider "domain" provided zone
+ 4. Remove the signature= part from the URI, generating a truncated URI composed
+    of the full scheme, hostname, path and parameters.
+ 5. For each valid key found, validate truncated URI against the signature.
+
+If no valid signature is found, registrar/operator will refuse the request.
+
+The registrar can optionnaly refuse unknown third party providers.
+
+The registrar must prompt the user with the third party provider name, eventually
+add more information they have about this name, such as a pre-shared logo or additional
+text - and upon user approval take the appropriate action.
+
+5. Types of provided service
+
+We propose the following provided service and a suggested semantics below
+
+Unless stated otherwise, all calls below take the following mandatory
+common parameters:
+
+    source=value   The domain name prompted to the user, defining the Third party service
+    domain=value   The user domain name to modify
+    expires=value  The expiration date for this change
+    signature=value The Signature (TBD- if RSA, PKCS#1 v2, ..) covering the full URI
+
+An example URI is shown here:
+
+https://registrar-service.example.com/tpda/nameservers?source=tp.example.com&domain=example.com&expires=201701010000Z&ns=ns1.example.com&ns=ns2.example.com&signature=cf83f2787..
+
+5.1 NAMESERVERS: Change of domain nameservers (registrar level)
+
+Semantics: replaces existing nameservers with the provided list
+
+URI parameters:
+    ns=     Required. Nameserver to be included in the list. This parameter can
+            be provided multiple times.
+
+    ipv4=   Optional parameter immediately following an NS parameter, in the case
+            where this NS does not exist and a glue record creation is required.
+            This can help the Third party provider to setup vanity nameservers.
+
+    ipv6=   Optional parameter immediately following an NS or an IPv4 parameter,
+            defined as above.
+
+Example URI:
+https://registrar-service.example.com/tpda/nameservers?source=tp.example.com&domain=example.com&expires=201701010000Z&ns=ns1.example.com&ipv4=192.0.2.1ns=ns2.example.com&ipv4=192.0.2.1&ipv6=2001:DB8::1&signature=cf83f2787..
+
+5.2 DNSSEC: Setup of initial DNSSEC configuration (registrar level)
+
+Semantics: keep existing DNSSEC setup if existing, and push the provided new DS to the
+        the registry.
+
+URI parameters:
+    algorithm=  Required. Algorithm used by the key.
+    pubkey=     Required. Base64 encoded public key.
+    flags=      Optional. Key flags. Defaults to 257 (KSK).
+
+Eventually repeating parameters in this order for multiple keys.
+
+Example URI:
+https://registrar-service.example.com/tpda/dnssec?source=tp.example.com&domain=example.com&expires=201701010000Z&algorithm=8&pubkey=AwEAAb4dIJOTqVnrS7ckn9SGgfSe1du41LObNPmx5PmKkidOj47F8mi0..&signature=cf83f2787..
+
+5.3 CDSCHECK: Manage key rollover (registrar level)
+
+Semantics: See http://www.ietf.org/id/draft-latour-dnsoperator-to-rrr-protocol-03.txt
+especially section 3.2 and 3.3
+
+URI parameters:
+    None -
+
+The registrar validates the domain zone for CDS/CDNSKEY records, performs DNSSEC validation,
+and proceeds to DNSSEC updates according to the draft above.
+
+Example URI:
+https://registrar-service.example.com/tpda/dnssec?source=tp.example.com&domain=example.com&expires=201701010000Z&signature=cf83f2787..
+
+5.4 RECORD
+
+Semantics: Allows Third party provider to insert or replace SRV/MX/SPF/A/AAAA/CNAME records into a
+customer zone
+
+URI parameters:
+    name=   Required. '@' stands for the domain itself. Name of the RR to be added.
+    type=   Required. Type of the RR to be added.
+    value=  Required. Value of the RR to be added. For example, "10 mx.example.com." for an MX record.
+    ttl=    Optional. TTL for the RR to be added.
+
+Eventually repeating parameters in this order for multiple records.
+
+Example URI:
+https://registrar-service.example.com/tpda/dnssec?source=tp.example.com&domain=example.com&expires=201701010000Z&name=www&type=CNAME&value=service.example.com&name=@&type=A&value=192.0.2.22&signature=cf83f2787..
+
+6. Availability/limitations
+
+RDAP is not an available protocol yet. There is no real "root" RDAP service available, registry RDAP
+servers are kind of an experiment now, and it might take a long time before all TLDs support such a
+service.
+
+In the meantime, the Third party services might have an hardcoded list of RDAP servers for registrars,
+or we might want to setup a non-official whois-based RDAP service for that experiment.
+
+The DNS key publication is to be defined/improved -
+The service API semantics might be improved as well
