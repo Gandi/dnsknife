@@ -41,8 +41,8 @@ It can be used for DNSSEC lookups, implements a few CDS/CDNSKEY drafts:
 .. code:: python
 
     >>> c = Checker('example.com')
-    >>> with dnsknife.dnssec(c):
-    >>>     print c.spf()
+    >>> with dnsknife.dnssec(c) as sec:
+    >>>     print sec.spf()
     None
 
     >>> Checker('ten.pm').cdnskey()
@@ -74,8 +74,11 @@ It also has a few more functions for DNSSEC checks:
     True
 
 
-Finally it implements TPDA - the draft can be found in the repo.
+Finally it implements TPDA - the draft_ can be found in docs_.
 ----------------------------------------------------------------
+
+.. _docs: docs/
+.. _draft: docs/extending_registrar_functions.txt
 
 A third party provider wanting to change customer NS:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
