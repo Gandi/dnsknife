@@ -15,6 +15,7 @@ proxy support.
 
 from __future__ import absolute_import
 
+import contextlib
 import socket
 
 import dns.dnssec
@@ -149,6 +150,16 @@ def trusted(answer):
         for key in keyans:
             if signed_by(answer, key):
                 return True
+
+
+@contextlib.contextmanager
+def dnssec(checker):
+    try:
+        old = checker.dnssec
+        checker.dnssec = True
+        yield checker
+    finally:
+        checker.dnssec = old
 
 
 class Checker:
@@ -288,7 +299,7 @@ class Checker:
             except:
                 pass
 
-    def cdnskey(self):
+    def _cdnskey(self):
         """ 1. All nameservers should agree on the CDNSKEY set
             2. The CDNSKEY should already be signing the DNSKEY RRSET
             3. Presence of 0 algorithm means remove everything. Cannot
@@ -326,3 +337,8 @@ class Checker:
                     raise exceptions.BadCDNSKEY('Alg0 and other keys found')
 
         return cds_rrset
+
+    def cdnskey(self):
+        """Wrapper - enforce dnssec usage"""
+        with dnssec(self):
+            return self._cdnskey()
