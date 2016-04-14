@@ -153,16 +153,12 @@ def trusted(answer):
 
 
 @contextlib.contextmanager
-def dnssec(checker):
-    try:
-        old = checker.dnssec
-        checker.dnssec = True
-        yield checker
-    finally:
-        checker.dnssec = old
+def dnssec(c):
+    yield Checker(c.domain, dnssec=True, direct=c.direct,
+                  errors=c.err_fn, nameservers=c.nameservers)
 
 
-class Checker:
+class Checker(object):
 
     def __init__(self, domain, dnssec=False, direct=True,
                  errors=None, nameservers=None):
