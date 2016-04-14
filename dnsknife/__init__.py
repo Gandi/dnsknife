@@ -105,15 +105,16 @@ def rrset_rrsig(response):
     return rrset, rrsig
 
 
-def signers(response):
-    """Takes a response, and return signer names and key_tags.
-    Check that signers are allowed to sign names.
+def signers(answer):
+    """Takes a dns.resolver.Answer, and return signer
+    names and key_tags. Check that signers are allowed
+    to sign names.
 
         {'signer': [keytag, keytag], ..}
 
     """
-    rrset, rrsig = rrset_rrsig(response)
-    qname = response.question[0].name
+    rrset, rrsig = rrset_rrsig(answer.response)
+    qname = answer.response.question[0].name
 
     signer_names = set(sig.signer for sig in rrsig)
     if not all([qname.is_subdomain(sn) for sn in signer_names]):
@@ -126,10 +127,10 @@ def signers(response):
     return ret
 
 
-def signed_by(response, dnskey):
-    """Checks that a given answer has been signed by the given
-    dns Key object."""
-    rrset, rrsig = rrset_rrsig(response)
+def signed_by(answer, dnskey):
+    """Checks that a given dns.resolver.Answer has been signed
+    by the given dns Key object."""
+    rrset, rrsig = rrset_rrsig(answer.response)
 
     for sig in rrsig:
         if sig.key_tag == dns.dnssec.key_id(dnskey):
@@ -141,12 +142,12 @@ def signed_by(response, dnskey):
     return False
 
 
-def trusted(response):
-    """Check if one signer in the answer is trusted"""
-    for signer in signers(response).keys():
+def trusted(answer):
+    """Check if one signer in the dns.resolver.Answer is trusted"""
+    for signer in signers(answer).keys():
         keyans = query(signer, dns.rdatatype.DNSKEY)
         for key in keyans:
-            if signed_by(response, key):
+            if signed_by(answer, key):
                 return True
 
 
@@ -198,8 +199,9 @@ class Checker:
                     ans = dns.query.tcp(req, addr, timeout, 53)
                 if ans.rcode() != dns.rcode.NOERROR:
                     raise exceptions.BadRcode(dns.rcode.to_text(ans.rcode()))
-                if not self.dnssec or trusted(ans):
-                    return dns.resolver.Answer(qname, rdtype, rdclass, ans)
+                answer = dns.resolver.Answer(qname, rdtype, rdclass, ans)
+                if not self.dnssec or trusted(answer):
+                    return answer
                 if self.dnssec:
                     raise exceptions.NoDNSSEC
             except (dns.exception.Timeout, socket.error) as e:
@@ -310,7 +312,7 @@ class Checker:
 
             # 2.
             for key in cds:
-                if not signed_by(dnskeys.response, key):
+                if not signed_by(dnskeys, key):
                     errstr = ('{} did not sign '
                               'DNSKEY RR'.format(dns.dnssec.key_id(key)))
                     raise exceptions.BadCDNSKEY(errstr)
