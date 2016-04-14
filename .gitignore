@@ -1,2 +1,4 @@
+.eggs/
 dnsknife.egg-info/
 .cache/
+*.pyc
