@@ -24,8 +24,8 @@ else:
 # introduced udp support. First available version is 1.5.6
 pysocks = 'PySocks>=1.5.6'
 extras_require = {
-   'test': ['mock', pysocks],
-   'socks': [pysocks]
+    'test': ['mock', pysocks],
+    'socks': [pysocks]
 }
 
 tests_requires = requires + extras_require['test']
