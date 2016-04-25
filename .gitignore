@@ -2,3 +2,6 @@
 dnsknife.egg-info/
 .cache/
 *.pyc
+build/
+dist/
+.ipynb_checkpoints/
