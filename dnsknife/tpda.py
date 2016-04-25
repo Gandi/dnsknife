@@ -176,6 +176,45 @@ class Client:
 
         return self.sign_for_domain(domain, 'record', params)
 
+    def dnssec_uri(self, domain, algorithm, pubkey, flags=257):
+        """Return the full signed URI to access this domain operator dnssec
+        first setup service and install given key, if available."""
+
+        params = self.params_for_domain(domain)
+        params += ('algorithm', algorithm), ('pubkey', pubkey), \
+                  ('flags', flags)
+
+        return self.sign_for_domain(domain, 'dnssec', params)
+
+    def website_uri(self, domain, ipv4=None, ipv6=None, cname=None):
+        """Return the full signed URI to change this domain web configuration
+        as per spec. ipv4/v6 are used to setup zone apex A/AAAA records. CNAME
+        can be used to setup 'WWW' alias."""
+
+        params = self.params_for_domain(domain)
+        for ipv4 in ipv4 or []:
+            params += ('ipv4', ipv4),
+
+        for ipv6 in ipv6 or []:
+            params += ('ipv6', ipv6),
+
+        if cname:
+            params += ('cname', cname),
+
+        return self.sign_for_domain(domain, 'website', params)
+
+    def email_uri(self, domain, mx_list=[]):
+        """Return the full signed URI to change this domain mail configuration
+        as per spec. Format for each MX entry is "<priority> <exchange.>" as
+        in MX records"""
+
+        params = self.params_for_domain(domain)
+
+        for m in mx_list:
+            params += ('mx', m),
+
+        return self.sign_for_domain(domain, 'email', params)
+
     def sign_for_domain(self, domain, service, params):
         def find(domain, service):
             for rdap in STATIC_RDAP_SERVICES:

@@ -322,7 +322,7 @@ The registrar validates the domain zone for CDS/CDNSKEY records, performs DNSSEC
 and proceeds to DNSSEC updates according to the draft above.
 
 Example URI:
-https://registrar-service.example.com/tpda/dnssec?source=tp.example.com&domain=example.com&expires=201701010000Z&signature=cf83f2787..
+https://registrar-service.example.com/tpda/cdscheck?source=tp.example.com&domain=example.com&expires=201701010000Z&signature=cf83f2787..
 
 5.4 RECORD
 
@@ -338,7 +338,31 @@ URI parameters:
 Eventually repeating parameters in this order for multiple records.
 
 Example URI:
-https://registrar-service.example.com/tpda/dnssec?source=tp.example.com&domain=example.com&expires=201701010000Z&name=www&type=CNAME&value=service.example.com&name=@&type=A&value=192.0.2.22&signature=cf83f2787..
+https://registrar-service.example.com/tpda/record?source=tp.example.com&domain=example.com&expires=201701010000Z&name=www&type=CNAME&value=service.example.com&name=@&type=A&value=192.0.2.22&signature=cf83f2787..
+
+5.5 WEBSITE
+
+Semantics: simplify web setup by providing www + zone apex settings for websites.
+
+URI parameters:
+    cname=  Optional. Sets the 'www' record to the given CNAME.
+    ipv4=   Optional, multiple allowed. Have this ipv4 replace A records for apex, and unless
+            cname is also provided, make 'www' a CNAME to this ipv4.
+    ipv6=   Optional, multiple allowed. Have this ipv6 replace AAAA records for apex, and unless
+            cname is also provided, make 'www' a CNAME to this ipv6.
+
+Example URI:
+https://registrar-service.example.com/tpda/website?source=tp.example.com&domain=example.com&expires=201701010000Z&cname=hosted.example.com.&signature=cf83f2787..
+
+5.6 EMAIL
+
+Semantics: simplify MX setup by changing MX records on the domain.
+
+    mx=     Required, multiple allowed. Format "PRIORITY exchange." as in MX
+            records.
+
+Example URI:
+https://registrar-service.example.com/tpda/record?source=tp.example.com&domain=example.com&expires=201701010000Z&mx=10+m1.example.com.&mx=20+m2.example.com.&signature=cf83f2787..
 
 6. Availability/limitations
 
