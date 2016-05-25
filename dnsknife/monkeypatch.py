@@ -1,3 +1,4 @@
+import dns.name
 import dns.rdata
 import dns.rdataclass
 import dns.rdatatype
@@ -14,3 +15,7 @@ dns.rdtypes.ANY.DNSKEY.CDNSKEY = dns.rdtypes.ANY.DNSKEY.DNSKEY
 if not hasattr(dns.rdatatype, 'URI'):
     dns.rdatatype.URI = 256
     dns.rdatatype._by_text['URI'] = dns.rdatatype.URI
+
+# For pickle/unpickle
+
+del dns.name.Name.__setattr__

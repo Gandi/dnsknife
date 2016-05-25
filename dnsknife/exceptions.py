@@ -1,3 +1,7 @@
+from dns.resolver import NoAnswer  # noqa
+from dns.exception import Timeout  # noqa
+
+
 class NoDNSSEC(Exception):
     """Whenever the recursive NS we use does not perform DNSSEC
     validation for our lookup, which might be for many reasons"""

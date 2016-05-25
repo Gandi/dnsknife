@@ -47,10 +47,10 @@ class TestClient(unittest.TestCase):
             mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
                 as mock_socket:
             dnsknife.query('example.com', dns.rdatatype.A)
-            assert mock_socket.call_count == 0
-            assert mock_socks.call_count == 0
-            assert mock_udp.call_count == 1
-            assert mock_tcp.call_count == 0
+            self.assertEqual(mock_socket.call_count, 0)
+            self.assertEqual(mock_socks.call_count, 0)
+            self.assertEqual(mock_tcp.call_count, 0)
+            self.assertEqual(mock_udp.call_count, 1)
 
     def test_ns_called(self):
         c = dnsknife.Checker('test.com')
@@ -61,10 +61,10 @@ class TestClient(unittest.TestCase):
                 as mock_tcp, \
                 mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo)\
                 as mock_socket:
-            c.query('test.com', 'NS')
+            c.query_at('test.com', 'NS', '1.2.3.4')
             self.assertEqual(mock_udp.call_args[0][1], '1.2.3.4')
-            assert mock_socket.call_count == 1
-            assert mock_tcp.call_count == 0
+            self.assertEqual(mock_tcp.call_count, 0)
+            self.assertEqual(mock_socket.call_count, 1)
 
     def test_socks_used_for_direct(self):
         dnsknife.set_socks5_server('localhost')
@@ -73,9 +73,9 @@ class TestClient(unittest.TestCase):
             mock.patch('socket.getaddrinfo', side_effect=self.getaddrinfo) \
                 as mock_socket:
                     try:
-                        c.query('test.com', 'A')
+                        c.query_at('test.com', 'A', '1.2.3.4')
                     except:
                         # Socket None, will fail. But test is about socks
                         pass
-                    assert mock_socket.call_count == 1
-                    assert mock_socks.call_count == 1
+                    self.assertEqual(mock_socket.call_count, 1)
+                    self.assertEqual(mock_socks.call_count, 1)

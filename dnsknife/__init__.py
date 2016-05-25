@@ -35,11 +35,12 @@ except ImportError:
     __socks_available = False
 
 
+from . import async
 from . import exceptions
 from . import monkeypatch  # noqa
 
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 _config = {
     'resolver': dns.resolver.Resolver(),
@@ -223,13 +224,16 @@ class Checker(object):
         """Lookup."""
         if self.direct:
             raised = None
-            for ns in self.ns:
-                try:
-                    ans = self.query_at(name, rdtype, ns)
-                    return ans
-                except (dns.resolver.NXDOMAIN,
-                        dns.resolver.NoAnswer, exceptions.BadRcode) as e:
-                    raised = e
+            with async.Wrapper(self) as aw:
+                for ns in self.ns:
+                    aw.query_at(name, rdtype, ns)
+
+                for res in aw.get_all():
+                    if isinstance(res, Exception):
+                        raised = res
+                    else:
+                        return res
+
             if raised:
                 raise raised
 
@@ -275,15 +279,17 @@ class Checker(object):
                 self.notify_error(e)
         return False
 
+    def _uri_to_txt(self, ans):
+        # XXX Might use target once dnspython follows URI RFC
+        return ans.rrset[0].data[4:]
+
     def uri(self, name, relative=True):
         """Return the published URI"""
         if relative:
             ans = self.query_relative(name, dns.rdatatype.URI)
         else:
             ans = self.query(name, dns.rdatatype.URI)
-
-        # XXX Might use target once dnspython follows URI RFC
-        return ans.rrset[0].data[4:]
+        return self._uri_to_txt(ans)
 
     def mx(self, name=''):
         """Return the mx set for the domain"""
@@ -314,13 +320,14 @@ class Checker(object):
 
     def tpda_endpoint(self, name):
         """Return the endpoint according to this domain DNS operator
-        setup. (Lookup _tpda service name as an URI)."""
-        for ns in self.ns:
-            try:
-                # Cheat
-                return self.uri('{}._tpda._tcp.{}'.format(name, ns), False)
-            except:
-                pass
+        setup. (Lookup _tpda service name as an URI on each NS)."""
+        with async.Wrapper(self) as aw:
+            for ns in self.ns:
+                qname = '{}._tpda._tcp.{}'.format(name, ns)
+                aw.query_at(qname, 'URI', ns)
+            for ans in aw.get_all():
+                if not isinstance(ans, Exception):
+                    return self._uri_to_txt(ans)
 
     def _cdnskey(self):
         """ 1. All nameservers should agree on the CDNSKEY set
@@ -363,5 +370,5 @@ class Checker(object):
 
     def cdnskey(self):
         """Wrapper - enforce dnssec usage"""
-        with dnssec(self):
-            return self._cdnskey()
+        with dnssec(self) as sec:
+            return sec._cdnskey()
