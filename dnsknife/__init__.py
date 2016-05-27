@@ -224,15 +224,11 @@ class Checker(object):
         """Lookup."""
         if self.direct:
             raised = None
-            with async.Wrapper(self) as aw:
-                for ns in self.ns:
-                    aw.query_at(name, rdtype, ns)
-
-                for res in aw.get_all():
-                    if isinstance(res, Exception):
-                        raised = res
-                    else:
-                        return res
+            for ns in self.ns:
+                try:
+                    return self.query_at(name, rdtype, ns)
+                except Exception as raised:
+                    pass
 
             if raised:
                 raise raised
@@ -321,13 +317,14 @@ class Checker(object):
     def tpda_endpoint(self, name):
         """Return the endpoint according to this domain DNS operator
         setup. (Lookup _tpda service name as an URI on each NS)."""
-        with async.Wrapper(self) as aw:
-            for ns in self.ns:
-                qname = '{}._tpda._tcp.{}'.format(name, ns)
-                aw.query_at(qname, 'URI', ns)
-            for ans in aw.get_all():
-                if not isinstance(ans, Exception):
-                    return self._uri_to_txt(ans)
+        for ns in self.ns:
+            qname = '{}._tpda._tcp.{}'.format(name, ns)
+            try:
+                res = self.query_at(qname, 'URI', ns)
+                if res:
+                    return self._uri_to_txt(res)
+            except:
+                pass
 
     def _cdnskey(self):
         """ 1. All nameservers should agree on the CDNSKEY set
