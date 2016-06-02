@@ -7,12 +7,14 @@ Quick overview:
 
 .. code:: python
 
-    >>> import dnsknife
-    >>> ans = dnsknife.query('example.com', 'A', dnssec=True)
+    >>> from dnsknife import resolver
+    >>> ans = resolver.query('example.com', 'A', dnssec=True)
+
 Specific queries shortcuts:
 
 .. code:: python
 
+    >>> import dnsknife
     >>> print dnsknife.Checker('example.com').mx()
     []
 
@@ -33,6 +35,72 @@ local caches) for a match:
     >>> Checker('example.com', direct=True).has_txt('dbef8938bef', ['www'], ignore_case=True)
     False
 
+Querying a few dozen things at the same time:
+
+.. code:: python
+
+    >>> from dnsknife.resolver import Resolver
+    >>> with Resolver(timeout=2) as r:
+            a = r.query_at('www.example.com', 'A', '1.2.3.4')
+            ...
+            x = r.query_at('www.example.com', 'A', '1.2.3.4')
+
+    >>> print a.get()
+    <dns.resolver.Answer at 0x7f6e3d398ad0>
+
+    >>> print x.get()
+    <dns.resolver.Answer at 0x7f6e3d398bd0>
+
+Scanning a zone:
+
+.. code:: python
+
+    In [16]: from dnsknife.scanner import Scanner
+    In [9]: time list(scanner.Scanner('google.com').scan())
+    CPU times: user 476 ms, sys: 28 ms, total: 504 ms
+    Wall time: 2.4 s
+    Out[9]: 
+    [<DNS mail.google.com. IN CNAME RRset>,
+     <DNS support.google.com. IN CNAME RRset>,
+     <DNS google.com. IN A RRset>,
+     <DNS google.com. IN AAAA RRset>,
+     <DNS google.com. IN NS RRset>,
+     <DNS google.com. IN MX RRset>,
+     <DNS google.com. IN TXT RRset>,
+     <DNS www.google.com. IN A RRset>,
+     <DNS www.google.com. IN AAAA RRset>,
+     <DNS googlemail.l.google.com. IN A RRset>,
+     <DNS googlemail.l.google.com. IN AAAA RRset>,
+     <DNS mail.google.com. IN TXT RRset>,
+     <DNS corp.google.com. IN A RRset>,
+     <DNS corp.google.com. IN AAAA RRset>,
+     <DNS corp.google.com. IN NS RRset>,
+     <DNS admin.google.com. IN A RRset>,
+     <DNS admin.google.com. IN AAAA RRset>,
+     <DNS www3.l.google.com. IN A RRset>,
+     <DNS www3.l.google.com. IN AAAA RRset>,
+     <DNS googlemail.l.google.com. IN A RRset>,
+     <DNS googlemail.l.google.com. IN AAAA RRset>,
+     <DNS www3.l.google.com. IN A RRset>,
+     <DNS www3.l.google.com. IN AAAA RRset>,
+     <DNS ns4.google.com. IN A RRset>,
+     <DNS ns2.google.com. IN A RRset>,
+     <DNS ns1.google.com. IN A RRset>,
+     <DNS ns3.google.com. IN A RRset>,
+     <DNS alt4.aspmx.l.google.com. IN A RRset>,
+     <DNS alt4.aspmx.l.google.com. IN AAAA RRset>,
+     <DNS aspmx.l.google.com. IN A RRset>,
+     <DNS aspmx.l.google.com. IN AAAA RRset>,
+     <DNS alt2.aspmx.l.google.com. IN A RRset>,
+     <DNS alt2.aspmx.l.google.com. IN AAAA RRset>,
+     <DNS alt1.aspmx.l.google.com. IN A RRset>,
+     <DNS alt1.aspmx.l.google.com. IN AAAA RRset>,
+     <DNS alt3.aspmx.l.google.com. IN A RRset>,
+     <DNS alt3.aspmx.l.google.com. IN AAAA RRset>,
+     <DNS ns2.google.com. IN A RRset>,
+     <DNS ns1.google.com. IN A RRset>,
+     <DNS ns3.google.com. IN A RRset>,
+     <DNS ns4.google.com. IN A RRset>]
 
 
 It can be used for DNSSEC lookups, implements a few CDS/CDNSKEY drafts:
@@ -40,9 +108,8 @@ It can be used for DNSSEC lookups, implements a few CDS/CDNSKEY drafts:
 
 .. code:: python
 
-    >>> c = Checker('example.com')
-    >>> with dnsknife.dnssec(c) as sec:
-    >>>     print sec.spf()
+    >>> c = Checker('example.com', dnssec=True)
+    >>> print c.spf()
     None
 
     >>> Checker('ten.pm').cdnskey()
@@ -53,24 +120,22 @@ It can be used for DNSSEC lookups, implements a few CDS/CDNSKEY drafts:
 
     BadCDNSKEY: 1324 did not sign DNSKEY RR
 
-
-It also has a few more functions for DNSSEC checks:
----------------------------------------------------
-
 .. code:: python
 
-    >>> keys = dnsknife.query('example.com', 'DNSKEY')
-    >>> dnsknife.signed_by(ans, keys[0])
+    >>> from dnsknife import dnssec, resolver
+    >>> keys = resolver.query('example.com', 'DNSKEY')
+    >>> dnssec.signed_by(ans, keys[0])
     True
 
 .. code:: python
 
-    >>> dnsknife.signers(dnsknife.Checker('pm.', dnssec=True).query('pm.', 'DNSKEY'))
+    >>> dnssec.signers(dnsknife.Checker('pm.', dnssec=True)
+                       .query_relative('', 'DNSKEY'))
     {<DNS name pm.>: [35968, 60859]}
 
 .. code:: python
 
-    >>> dnsknife.trusted(ans)
+    >>> dnssec.trusted(ans)
     True
 
 

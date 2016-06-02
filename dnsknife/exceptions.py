@@ -2,6 +2,11 @@ from dns.resolver import NoAnswer  # noqa
 from dns.exception import Timeout  # noqa
 
 
+class BadAnswer(Exception):
+    """On low level errors"""
+    pass
+
+
 class NoDNSSEC(Exception):
     """Whenever the recursive NS we use does not perform DNSSEC
     validation for our lookup, which might be for many reasons"""
