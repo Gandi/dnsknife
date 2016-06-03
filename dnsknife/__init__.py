@@ -16,6 +16,7 @@ proxy support.
 from __future__ import absolute_import
 
 import contextlib
+import random
 
 import dns.dnssec
 import dns.exception
@@ -35,7 +36,7 @@ from . import resolver
 from .resolver import set_nameservers, set_socks5_server, query  # noqa
 
 
-__version__ = '0.3'
+__version__ = '0.4'
 
 
 @contextlib.contextmanager
@@ -51,10 +52,10 @@ class Checker(object):
         self.dnssec = dnssec
         self.direct = direct
         self.err_fn = errors
-        self.ns = nameservers or resolver.ns_for(self.domain, self.dnssec)
+        self.ns_addrs = nameservers or resolver.ns_for(self.domain, self.dnssec)
 
     def set_nameservers(self, ns):
-        self.ns = ns
+        self.ns_addrs = ns
 
     def query_at(self, qname, rdtype, nameserver, timeout=2):
         """Lookup, but explicitely sends a packet to the selected
@@ -67,7 +68,7 @@ class Checker(object):
         """Lookup."""
         if self.direct:
             raised = None
-            for ns in self.ns:
+            for ns in self.ns_addrs:
                 try:
                     return self.query_at(name, rdtype, ns)
                 except Exception as raised:
@@ -86,6 +87,14 @@ class Checker(object):
     def notify_error(self, exc):
         if self.err_fn:
             self.err_fn(exc)
+
+    def ns(self):
+        """Return the nameservers (hostnames) for this domain"""
+        return [rrset.target.to_text() for rrset in
+                self.query_relative('', 'NS').rrset]
+
+    def random_ns_addr(self):
+        return random.sample(self.ns_addrs, 1)[0]
 
     def txt(self, name=''):
         """Return the txt for name under zone, values joined
@@ -160,12 +169,15 @@ class Checker(object):
     def tpda_endpoint(self, name):
         """Return the endpoint according to this domain DNS operator
         setup. (Lookup _tpda service name as an URI on each NS)."""
-        for ns in self.ns:
-            qname = '{}._tpda._tcp.{}'.format(name, ns)
+        answers = []
+        with resolver.Resolver() as r:
+            for ns in self.ns():
+                qname = '{}._tpda._tcp.{}'.format(name, ns)
+                answers.append(r.query_at(qname, 'URI', self.random_ns_addr()))
+
+        for answer in answers:
             try:
-                res = self.query_at(qname, 'URI', ns)
-                if res:
-                    return self._uri_to_txt(res)
+                return self._uri_to_txt(answer.get())
             except:
                 pass
 
@@ -184,13 +196,13 @@ class Checker(object):
         cds_rrset = None
 
         with resolver.Resolver() as r:
-            for ns in self.ns:
+            for ns in self.ns_addrs:
                 cds[ns] = r.query_at(self.domain, dns.rdatatype.CDNSKEY,
                                      ns, True)
                 dnskeys[ns] = r.query_at(self.domain, dns.rdatatype.DNSKEY,
                                          ns, True)
 
-        for ns in self.ns:
+        for ns in self.ns_addrs:
             # 1.
             cds[ns] = cds[ns].get()
             dnskeys[ns] = dnskeys[ns].get()
@@ -208,7 +220,7 @@ class Checker(object):
                               'DNSKEY RR'.format(dns.dnssec.key_id(key)))
                     raise exceptions.BadCDNSKEY(errstr)
 
-        for ns in self.ns:
+        for ns in self.ns_addrs:
             # 3.
             if any(key.algorithm == 0 for key in cds[ns]):
                 if len(cds[ns]) == 1:
