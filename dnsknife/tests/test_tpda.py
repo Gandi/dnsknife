@@ -23,10 +23,10 @@ class TestTPDA(unittest.TestCase):
             assert 'source' in url
             assert 'expires' in url
 
-        with (mock.patch('dnsknife.Checker.txt',
-                         return_value=self.client.key_txt()),
+        with mock.patch('dnsknife.Checker.txt',
+                         return_value=self.client.key_txt()), \
               mock.patch('dnsknife.resolver.ns_for',
-                         return_value=['1.2.3.4'])):
+                         return_value=['1.2.3.4']):
             trusted_url = tpda.validate_URI(url)
             assert 'source=domain.com' in trusted_url
 
@@ -54,7 +54,6 @@ class TestTPDA(unittest.TestCase):
         uri = self._test_url_gen(self.client.email_uri, 'email',
                                  ['10 mx1.', '20 mx2.'])
 
-        print uri
         assert 'mx=10+mx1' in uri
 
     def test_url_bad_signature(self):
@@ -62,10 +61,10 @@ class TestTPDA(unittest.TestCase):
                         return_value='http://uri/'):
             url = self.client.nameservers_uri('tfz.net', ['ns1.', 'ns2.'])
 
-        with (mock.patch('dnsknife.Checker.txt',
-                         return_value=self.client.key_txt()),
+        with mock.patch('dnsknife.Checker.txt',
+                         return_value=self.client.key_txt()), \
               mock.patch('dnsknife.resolver.ns_for',
-                         return_value=['1.2.3.4'])):
+                         return_value=['1.2.3.4']):
             url = url.replace('source=domain', 'source=evil')
             self.assertRaises(exceptions.NoSignatureMatch,
                               tpda.validate_URI, url)

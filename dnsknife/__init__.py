@@ -71,7 +71,8 @@ class Checker(object):
             for ns in self.ns_addrs:
                 try:
                     return self.query_at(name, rdtype, ns)
-                except Exception as raised:
+                except Exception as e:
+                    raised = e
                     pass
 
             if raised:
@@ -148,7 +149,7 @@ class Checker(object):
             return []
 
         return [rr.exchange.to_text() for rr in
-                sorted(mx_set, None, lambda rr: rr.preference)]
+                sorted(mx_set, key=lambda rr: rr.preference)]
 
     def txt_spf(self):
         """Return first TXT/spf record for domain"""

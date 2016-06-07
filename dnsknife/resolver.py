@@ -73,17 +73,16 @@ def make_socket(proto, addr, source=None, source_port=0):
         sock.bind((source, source_port,))
         sock.connect(addr)
     except socket.error as e:
-        print addr, source, source_port, e
         if e.args == errno.EINPROGRESS:
             pass
     return sock
 
 
 def ns_for(domain, dnssec=False):
-    addrs = reduce(lambda x, y: x + y, [ns_addr_insecure(ns.target.to_text())
+    addrs = sum([ns_addr_insecure(ns.target.to_text())
                                         for ns in query(domain,
                                                         dns.rdatatype.NS,
-                                                        dnssec).rrset])
+                                                        dnssec).rrset], [])
     if not can_ipv6:
         addrs = filter(lambda addr:
                        choose_family(addr) == socket.AF_INET, addrs)
@@ -157,7 +156,7 @@ class UDPQuery(Future):
     def __init__(self, q, where, source=None, source_port=0, timeout=2):
         Future.__init__(self, timeout)
         self.q = q
-        self.rdmsg = ''
+        self.rdmsg = b''
         self.net_args = (where, source, source_port)
         self.socket = self.make_socket(*self.net_args)
         self.answer = None
@@ -192,7 +191,6 @@ class UDPQuery(Future):
                 dns.message.from_wire(self.rdmsg)
                 return True
             except Exception as e:
-                print '(caught %s)' % e
                 pass
         return False
 
