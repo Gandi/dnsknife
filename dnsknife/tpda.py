@@ -87,15 +87,15 @@ class ServiceLocator:
 
     def endpoint(self, domain, service):
         d = self.query(domain)
-        if not d.get('tpda_endpoints'):
+        if not d.get('links'):
             raise exceptions.TPDANotEnabled('no tpda endpoints on registrar')
 
-        uri = d['tpda_endpoints'].get(service)
-        if not uri:
-            raise exceptions.ServiceNotPresent(
-                'service is not part of tpda endpoints')
+        for link in d['links']:
+            if link.get('rel', '').endswith('/tpda/{}'.format(service)):
+                return link['href']
 
-        return uri
+        raise exceptions.ServiceNotPresent(
+                'service not found')
 
 
 # XXX Well.
