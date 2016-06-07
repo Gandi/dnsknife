@@ -171,7 +171,7 @@ class Checker(object):
         """Return the endpoint according to this domain DNS operator
         setup. (Lookup _tpda service name as an URI on each NS)."""
         answers = []
-        with resolver.Resolver() as r:
+        with resolver.Resolver(timeout=5) as r:
             for ns in self.ns():
                 qname = '{}._tpda._tcp.{}'.format(name, ns)
                 answers.append(r.query_at(qname, 'URI', self.random_ns_addr()))
@@ -196,7 +196,7 @@ class Checker(object):
 
         cds_rrset = None
 
-        with resolver.Resolver() as r:
+        with resolver.Resolver(timeout=5) as r:
             for ns in self.ns_addrs:
                 cds[ns] = r.query_at(self.domain, dns.rdatatype.CDNSKEY,
                                      ns, True)
