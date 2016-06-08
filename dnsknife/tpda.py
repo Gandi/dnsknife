@@ -47,12 +47,12 @@ def validate_URI(uri):
 
     source = _qsl_get_one(pr.query, 'source')
 
-    checker = Checker(source, dnssec=True)
-    keys = [RSA.importKey(base64.b64decode(txt.encode('ascii')))
-            for txt in checker.txt('_tpda').split('\n')]
-
-    if not keys:
+    txtl = Checker(source, dnssec=True).txt('_tpda')
+    if not txtl:
         raise exceptions.NoTPDA
+
+    keys = [RSA.importKey(base64.b64decode(txt.encode('ascii')))
+            for txt in txtl.split('\n')]
 
     digest = SHA256.new()
     digest.update(uri.encode('ascii'))
