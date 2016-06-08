@@ -100,9 +100,12 @@ class Checker(object):
     def txt(self, name=''):
         """Return the txt for name under zone, values joined
         as a string, each record separated by a newline"""
-        resp = self.query_relative(name, dns.rdatatype.TXT)
-        return '\n'.join(''.join(r.strings) for r in resp
-                         if r.rdtype == dns.rdatatype.TXT)
+        try:
+            resp = self.query_relative(name, dns.rdatatype.TXT)
+            return '\n'.join(''.join(r.strings) for r in resp
+                             if r.rdtype == dns.rdatatype.TXT)
+        except (dns.resolver.NoAnswer, exceptions.BadRcode):
+            pass
 
     def has_txt(self, value, also_check=None, ignore_case=True):
         """Find if the specified TXT record in zone exists
@@ -153,12 +156,9 @@ class Checker(object):
 
     def txt_spf(self):
         """Return first TXT/spf record for domain"""
-        try:
-            for rec in self.txt():
-                if rec.startswith('v=spf'):
-                    return rec
-        except dns.resolver.NoAnswer:
-            pass
+        for rec in self.txt():
+            if rec.startswith('v=spf'):
+                return rec
 
     def spf(self):
         try:
