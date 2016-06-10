@@ -25,45 +25,6 @@ def _qsl_get_one(qstring, param):
     return sigvals[0]
 
 
-def validate_URI(uri):
-    """Walk through an URI, lookup the set of DNSKEYs for the origin
-    third party provider domain, validate URI signature against the
-    found keys. If valid, returns the trustable URI - otherwise raise
-    an exception.
-
-    /!\ User MUST use the returned URI, as signature validation is
-    only done on everything *before* the URI.
-    """
-    # Truncate the signature= part
-    try:
-        uri, sig = uri.split('&signature=')
-        sig = parse.unquote(sig)
-    except ValueError:
-        raise exceptions.IncompleteURI
-
-    pr = parse.urlparse(uri)
-    if not pr.query:
-        raise exceptions.IncompleteURI
-
-    source = _qsl_get_one(pr.query, 'source')
-
-    txtl = Checker(source, dnssec=True).txt('_tpda')
-    if not txtl:
-        raise exceptions.NoTPDA
-
-    keys = [RSA.importKey(base64.b64decode(txt.encode('ascii')))
-            for txt in txtl.split('\n')]
-
-    digest = SHA256.new()
-    digest.update(uri.encode('ascii'))
-
-    for key in keys:
-        signer = PKCS1_v1_5.new(key)
-        if signer.verify(digest, base64.b64decode(sig)):
-            return uri
-
-    raise exceptions.NoSignatureMatch
-
 
 # Uses RDAP
 class ServiceLocator:
@@ -239,3 +200,192 @@ class Client:
 
         sig = base64.b64encode(signer.sign(digest))
         return '{}&{}'.format(uri, parse.urlencode({'signature': sig}))
+
+## Implementation of URL parsing
+class Completed(Exception):
+    pass
+
+
+class Param:
+    attrs = ()
+    multiple = ()
+    optional = ()
+    subparams = ()
+
+    def __init__(self, parent=None):
+        self.state = {}
+        self.parent = parent
+
+    def wants(self, name):
+        if name in self.attrs + self.optional:
+            if name not in self.state or name in self.multiple:
+                return self
+
+        for sub in self.subparams:
+            p = sub(self)
+            if name in p.attrs:
+                self.state.setdefault(p.name, []).append(p)
+                return p
+
+        if self.parent:
+            return self.parent.wants(name)
+
+    def add(self, name, value):
+        if name in self.multiple:
+            self.state.setdefault(name, []).append(value)
+        else:
+            self.state[name] = value
+
+    def complete(self):
+        return all(x in self.state for x in self.attrs)
+
+    def as_dict(self):
+        def as_dict(what):
+            if isinstance(what, list):
+                return list(as_dict(w) for w in what)
+            elif isinstance(what, dict):
+                return dict((k, as_dict(v)) for k,v in what.items())
+            elif isinstance(what, Param):
+                return what.as_dict()
+            else:
+                return what
+        return as_dict(self.state)
+
+
+class NsParam(Param):
+    name = 'nameservers'
+    attrs = ('ns',)
+    optional = ('ipv4', 'ipv6')
+    multiple = ('ipv4', 'ipv6')
+
+
+class RecordParam(Param):
+    name = 'record'
+    attrs = ('name', 'type', 'value')
+
+
+class DNSSECParam(Param):
+    name = 'dnssec'
+    attrs = ('algorithm', 'pubkey', 'flags')
+
+
+class EmailParamMX(Param):
+    name = 'email'
+    attrs = ('mx',)
+
+
+class EmailParamImapSvc(Param):
+    name = 'email'
+    attrs = ('imaps',)
+
+
+class EmailParamPop3Svc(Param):
+    name = 'email'
+    attrs = ('pop3s',)
+
+
+class EmailParamCaldavSvc(Param):
+    name = 'email'
+    attrs = ('caldav',)
+
+
+class WebsiteParamIP(Param):
+    name = 'website'
+    attrs = ('ipv4',)
+
+
+class WebsiteParamIPv6(Param):
+    name = 'website'
+    attrs = ('ipv6',)
+
+
+class WebsiteParamCNAME(Param):
+    name = 'website'
+    attrs  = ('cname',)
+
+
+class TPDAParam(Param):
+    attrs = ('domain',)
+    optional = ('source', 'expires', 'signature',)
+    subparams = (NsParam, RecordParam, DNSSECParam, EmailParamMX,
+                 EmailParamImapSvc, EmailParamPop3Svc,
+                 EmailParamCaldavSvc, WebsiteParamIP,
+                 WebsiteParamIPv6, WebsiteParamCNAME)
+
+
+def validate_URI(uri):
+    """Walk through an URI, lookup the set of DNSKEYs for the origin
+    third party provider domain, validate URI signature against the
+    found keys. If valid, returns the trustable URI - otherwise raise
+    an exception.
+
+    /!\ User MUST use the returned URI, as signature validation is
+    only done on everything *before* the URI.
+    """
+    # Truncate the signature= part
+    try:
+        uri, sig = uri.split('&signature=')
+        sig = parse.unquote(sig)
+    except ValueError:
+        raise exceptions.IncompleteURI
+
+    pr = parse.urlparse(uri)
+    if not pr.query:
+        raise exceptions.IncompleteURI
+
+    source = _qsl_get_one(pr.query, 'source')
+
+    txtl = Checker(source, dnssec=True).txt('_tpda')
+    if not txtl:
+        raise exceptions.NoTPDA
+
+    keys = [RSA.importKey(base64.b64decode(txt.encode('ascii')))
+            for txt in txtl.split('\n')]
+
+    digest = SHA256.new()
+    digest.update(uri.encode('ascii'))
+
+    for key in keys:
+        signer = PKCS1_v1_5.new(key)
+        if signer.verify(digest, base64.b64decode(sig)):
+            return uri
+
+    raise exceptions.NoSignatureMatch
+
+
+class URI(object):
+    def __init__(self, uri):
+        self.uri = uri
+        self.param = TPDAParam()
+        self.current_param = None
+        self.trusted = False
+        self._validate()
+
+    def _validate(self):
+        try:
+            self.uri = validate_URI(self.uri)
+            self.trusted = True
+        except:
+            self.trusted = False
+
+        pr = parse.urlparse(self.uri)
+        if not pr.query:
+            raise exceptions.IncompleteURI
+
+        for (name, val) in parse.parse_qsl(pr.query):
+            self._add(name, val)
+            if name == 'signature':
+                break
+
+    def _add(self, name, value):
+        if not self.current_param:
+            self.current_param = self.param
+
+        self.current_param = self.current_param.wants(name)
+        if self.current_param:
+            self.current_param.add(name, value)
+        else:
+            print('weird {}={}'.format(name, value))
+
+    def params(self):
+        return self.param.as_dict()
