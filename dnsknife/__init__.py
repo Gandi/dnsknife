@@ -132,8 +132,10 @@ class Checker(object):
         return False
 
     def _uri_to_txt(self, ans):
-        # XXX Might use target once dnspython follows URI RFC
-        return ans.rrset[0].data[4:]
+        txt = ans.rrset[0].target
+
+        # Workaround URI spec change
+        return txt[txt.index('http'):]
 
     def uri(self, name, relative=True):
         """Return the published URI"""

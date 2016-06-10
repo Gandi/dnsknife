@@ -15,6 +15,7 @@ dns.rdtypes.ANY.DNSKEY.CDNSKEY = dns.rdtypes.ANY.DNSKEY.DNSKEY
 if not hasattr(dns.rdatatype, 'URI'):
     dns.rdatatype.URI = 256
     dns.rdatatype._by_text['URI'] = dns.rdatatype.URI
+    dns.rdata.GenericRdata.target = property(lambda x: x.data[4:])
 
 # For pickle/unpickle
 
