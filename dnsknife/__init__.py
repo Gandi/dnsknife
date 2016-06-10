@@ -36,7 +36,7 @@ from . import resolver
 from .resolver import set_nameservers, set_socks5_server, query  # noqa
 
 
-__version__ = '0.5'
+__version__ = '0.6'
 
 
 @contextlib.contextmanager
