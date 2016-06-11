@@ -37,7 +37,7 @@ class FakeFuture:
         return fake_answer(self.name, self.rdtype, self.rvalues)
 
 
-@mock.patch('dnsknife.resolver.ns_for', return_value=['1.2.3.4'])
+@mock.patch('dnsknife.resolver.ns_addrs_for', return_value=['1.2.3.4'])
 @mock.patch('dnsknife.resolver.Resolver.query_at')
 class TestChecker(unittest.TestCase):
     def test_txt(self, rmock, cmock):

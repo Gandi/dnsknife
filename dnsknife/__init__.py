@@ -16,7 +16,6 @@ proxy support.
 from __future__ import absolute_import
 
 import contextlib
-import random
 
 import dns.dnssec
 import dns.exception
@@ -36,7 +35,7 @@ from . import resolver
 from .resolver import set_nameservers, set_socks5_server, query  # noqa
 
 
-__version__ = '0.6'
+__version__ = '0.7'
 
 
 @contextlib.contextmanager
@@ -52,7 +51,7 @@ class Checker(object):
         self.dnssec = dnssec
         self.direct = direct
         self.err_fn = errors
-        self.ns_addrs = nameservers or resolver.ns_for(self.domain, self.dnssec)
+        self.ns_addrs = nameservers or resolver.ns_addrs_for(self.domain, self.dnssec)
 
     def set_nameservers(self, ns):
         self.ns_addrs = ns
@@ -91,11 +90,7 @@ class Checker(object):
 
     def ns(self):
         """Return the nameservers (hostnames) for this domain"""
-        return [rrset.target.to_text() for rrset in
-                self.query_relative('', 'NS').rrset]
-
-    def random_ns_addr(self):
-        return random.sample(self.ns_addrs, 1)[0]
+        return resolver.ns_for(self.domain, self.dnssec)
 
     def txt(self, name=''):
         """Return the txt for name under zone, values joined
@@ -173,10 +168,12 @@ class Checker(object):
         """Return the endpoint according to this domain DNS operator
         setup. (Lookup _tpda service name as an URI on each NS)."""
         answers = []
+
         with resolver.Resolver(timeout=5) as r:
             for ns in self.ns():
                 qname = '{}._tpda._tcp.{}'.format(name, ns)
-                answers.append(r.query_at(qname, 'URI', self.random_ns_addr()))
+                answers.append(r.query_at(qname, 'URI',
+                               resolver.ns_for(ns)[0]))
 
         for answer in answers:
             try:

@@ -48,7 +48,7 @@ def set_nameservers(ns):
     system_resolver.nameservers = ns
 
 
-def choose_family(addr):
+def ip_family(addr):
     try:
         socket.inet_pton(socket.AF_INET6, addr)
         return socket.AF_INET6
@@ -57,7 +57,7 @@ def choose_family(addr):
 
 
 def make_socket(proto, addr, source=None, source_port=0):
-    af = choose_family(addr[0])
+    af = ip_family(addr[0])
 
     if pysocks:
         sock = pysocks.socksocket(af, proto, 0)
@@ -79,18 +79,30 @@ def make_socket(proto, addr, source=None, source_port=0):
 
 
 def ns_for(domain, dnssec=False):
-    addrs = sum([ns_addr_insecure(ns.target.to_text())
-                                        for ns in query(domain,
-                                                        dns.rdatatype.NS,
-                                                        dnssec).rrset], [])
+    answer = query(domain, dns.rdatatype.NS, dnssec,
+                    raise_on_no_answer=False)
+
+    # If we have authority referral, use it
+    if (answer.response.rcode() == dns.rcode.NOERROR
+        and not answer.rrset):
+        return ns_for(answer.response.authority[0].name, dnssec)
+
+    return [ns.target.to_text() for ns in answer.rrset]
+
+
+def ns_addrs_for(domain, dnssec=False):
+    ns_list = ns_for(domain, dnssec)
+
+    addrs = sum((ns_addr_insecure(ns) for ns in ns_list), [])
+
     if not can_ipv6:
         addrs = filter(lambda addr:
-                       choose_family(addr) == socket.AF_INET, addrs)
+                       ip_family(addr) == socket.AF_INET, addrs)
 
     return addrs
 
 
-def query(name, rdtype, dnssec=False):
+def query(name, rdtype, dnssec=False, raise_on_no_answer=True):
     """Lookup. Using the locally configured resolvers
     by default. Eventually using the local NS AD bit as a trust source."""
     # Query for our name, let NXDOMAIN raise
@@ -102,7 +114,7 @@ def query(name, rdtype, dnssec=False):
     if isinstance(rdtype, str):
         rdtype = dns.rdatatype.from_text(rdtype)
 
-    answer = res.query(name, rdtype)
+    answer = res.query(name, rdtype, raise_on_no_answer=raise_on_no_answer)
 
     # Double check we have DNSSEC validation
     if dnssec:
@@ -290,7 +302,10 @@ class Resolver:
         if isinstance(qname, str):
             qname = dns.name.from_text(qname)
         if isinstance(addr, str):
-            addr = (addr, 53,)
+            if ip_family(addr):
+                addr = (addr, 53,)
+            else:
+                addr = (ns_addr_insecure(addr)[0], 53)
 
         req = dns.message.make_query(qname, rdtype, rdclass)
         if dnssec:
