@@ -1,4 +1,5 @@
 import errno
+import random
 import select
 import socket
 import struct
@@ -313,6 +314,12 @@ class Resolver:
 
         return FutureAnswer(self, req, addr, self.timeout, self.source,
                             self.source_port)
+
+    def query(self, qname, rdtype, dnssec=False):
+        ns = system_resolver.nameservers
+        if not len(ns):
+            raise exceptions.NsLookupError('no nameservers')
+        return self.query_at(qname, rdtype, random.sample(ns, 1)[0], dnssec)
 
     def register(self, future):
         sock = future.get_sock()

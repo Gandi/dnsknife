@@ -35,7 +35,7 @@ from . import resolver
 from .resolver import set_nameservers, set_socks5_server, query  # noqa
 
 
-__version__ = '0.7'
+__version__ = '0.8'
 
 
 @contextlib.contextmanager
@@ -51,7 +51,22 @@ class Checker(object):
         self.dnssec = dnssec
         self.direct = direct
         self.err_fn = errors
-        self.ns_addrs = nameservers or resolver.ns_addrs_for(self.domain, self.dnssec)
+        self.nameservers = nameservers
+        self._ns_addrs = None
+        self._ns = None
+
+    @property
+    def ns(self):
+        if not self._ns:
+            self._ns = resolver.ns_for(self.domain, self.dnssec)
+        return self._ns
+
+    @property
+    def ns_addrs(self):
+        if not self._ns_addrs:
+            self._ns_addrs = self.nameservers \
+                or resolver.ns_addrs_for(self.domain, self.dnssec)
+        return self._ns_addrs
 
     def set_nameservers(self, ns):
         self.ns_addrs = ns
@@ -87,10 +102,6 @@ class Checker(object):
     def notify_error(self, exc):
         if self.err_fn:
             self.err_fn(exc)
-
-    def ns(self):
-        """Return the nameservers (hostnames) for this domain"""
-        return resolver.ns_for(self.domain, self.dnssec)
 
     def txt(self, name=''):
         """Return the txt for name under zone, values joined
@@ -170,10 +181,13 @@ class Checker(object):
         answers = []
 
         with resolver.Resolver(timeout=5) as r:
-            for ns in self.ns():
+            for ns in self.ns:
                 qname = '{}._tpda._tcp.{}'.format(name, ns)
-                answers.append(r.query_at(qname, 'URI',
-                               resolver.ns_for(ns)[0]))
+                if self.direct:
+                    answers.append(r.query_at(qname, 'URI',
+                                   resolver.ns_for(ns)[0]))
+                else:
+                    answers.append(r.query(qname, 'URI'))
 
         for answer in answers:
             try:

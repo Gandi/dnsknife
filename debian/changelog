@@ -1,3 +1,9 @@
+python-dnsknife (0.8) UNRELEASED; urgency=medium
+
+  * Rel 0.8
+
+ -- Pascal Bouchareine <pascal@gandi.net>  Sun, 12 Jun 2016 16:28:58 -0700
+
 python-dnsknife (0.7) unstable; urgency=medium
 
   * Release 0.7
