@@ -63,3 +63,6 @@ class ServiceNotPresent(Exception):
 
 class UnsafeRedirect(Exception):
     pass
+
+class Expired(Exception):
+    pass

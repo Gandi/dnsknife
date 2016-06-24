@@ -78,7 +78,7 @@ class Client:
                'client.example.com', ['ns1.example.com','ns2.example.com'])
     """
 
-    def __init__(self, domain, key, lease_time=86400, override_uri=None):
+    def __init__(self, domain, key, lease_time=3600, override_uri=None):
         """Initialize a TPDA client. `domain` refers to the client
         domain where the _tpda DNSKEY record should be published.
         `key` is a local path to access this same private key.
@@ -306,14 +306,70 @@ class WebsiteParamCNAME(Param):
 
 class TPDAParam(Param):
     attrs = ('domain',)
-    optional = ('source', 'expires', 'signature',)
+    optional = ('source', 'expires', 'signature', 'redirect')
     subparams = (NsParam, RecordParam, DNSSECParam, EmailParamMX,
                  EmailParamImapSvc, EmailParamPop3Svc,
                  EmailParamCaldavSvc, WebsiteParamIP,
                  WebsiteParamIPv6, WebsiteParamCNAME)
 
 
-def validate_URI(uri):
+class Params:
+    """Takes a list of (name, value) and convert into
+    a comprehensive tpda parameter dict.
+
+    With a multidict, items()
+    with an URL, parse_qsl(query)
+    """
+    def __init__(self, params):
+        self.param = TPDAParam()
+        self.current_param = None
+        self._params = params
+        self._validate()
+
+    def _validate(self):
+        for (name, val,) in self._params:
+            self._add(name, val)
+            if name == 'signature':
+                break
+
+    def _add(self, name, value):
+        if not self.current_param:
+            self.current_param = self.param
+
+        self.current_param = self.current_param.wants(name)
+        if self.current_param:
+            self.current_param.add(name, value.lower())
+        else:
+            print('weird {}={}'.format(name, value))
+
+    def params(self):
+        return self.param.as_dict()
+
+
+def params(arg):
+    """
+    Parse `arg` and returns a dict describing the TPDA
+    arguments.
+
+    Resolution order:
+        - `arg` is a string is parsed as an URL
+        - `arg` has an items() method and is parsed
+           (works for multidicts, ..)
+        - `arg` is a iterable is parsed as a
+           ((name, value), (name, value), ..)
+    """
+    if isinstance(arg, str):
+        pr = parse.urlparse(arg)
+        if not pr.query:
+            raise exceptions.IncompleteURI
+        return Params(parse.parse_qsl(pr.query)).params()
+    elif hasattr(arg, 'items'):
+        return Params(arg.items()).params()
+    elif hasattr(arg, '__iter__'):
+        return Params(arg).params()
+
+
+def trusted_params(uri):
     """Walk through an URI, lookup the set of DNSKEYs for the origin
     third party provider domain, validate URI signature against the
     found keys. If valid, returns the trustable URI - otherwise raise
@@ -333,6 +389,11 @@ def validate_URI(uri):
     if not pr.query:
         raise exceptions.IncompleteURI
 
+    expires = _qsl_get_one(pr.query, 'expires')
+    if (datetime.datetime.utcnow() >
+        datetime.datetime.strptime(expires, '%Y%m%d%H%M%S')):
+        raise exceptions.Expired
+
     source = _qsl_get_one(pr.query, 'source')
 
     txtl = Checker(source, dnssec=True).txt('_tpda')
@@ -348,44 +409,6 @@ def validate_URI(uri):
     for key in keys:
         signer = PKCS1_v1_5.new(key)
         if signer.verify(digest, base64.b64decode(sig)):
-            return uri
+            return params(uri)
 
     raise exceptions.NoSignatureMatch
-
-
-class URI(object):
-    def __init__(self, uri):
-        self.uri = uri
-        self.param = TPDAParam()
-        self.current_param = None
-        self.trusted = False
-        self._validate()
-
-    def _validate(self):
-        try:
-            self.uri = validate_URI(self.uri)
-            self.trusted = True
-        except:
-            self.trusted = False
-
-        pr = parse.urlparse(self.uri)
-        if not pr.query:
-            raise exceptions.IncompleteURI
-
-        for (name, val) in parse.parse_qsl(pr.query):
-            self._add(name, val)
-            if name == 'signature':
-                break
-
-    def _add(self, name, value):
-        if not self.current_param:
-            self.current_param = self.param
-
-        self.current_param = self.current_param.wants(name)
-        if self.current_param:
-            self.current_param.add(name, value)
-        else:
-            print('weird {}={}'.format(name, value))
-
-    def params(self):
-        return self.param.as_dict()

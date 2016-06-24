@@ -27,8 +27,8 @@ class TestTPDA(unittest.TestCase):
                          return_value=self.client.key_txt()), \
               mock.patch('dnsknife.resolver.ns_for',
                          return_value=['1.2.3.4']):
-            trusted_url = tpda.validate_URI(url)
-            assert 'source=domain.com' in trusted_url
+            trusted_params = tpda.trusted_params(url)
+            self.assertEqual(trusted_params.get('source'), 'domain.com')
 
         return url
 
@@ -67,7 +67,7 @@ class TestTPDA(unittest.TestCase):
                          return_value=['1.2.3.4']):
             url = url.replace('source=domain', 'source=evil')
             self.assertRaises(exceptions.NoSignatureMatch,
-                              tpda.validate_URI, url)
+                              tpda.trusted_params, url)
 
     def test_url_gen_override(self):
         client = tpda.Client('domain.com', '{}/test.key'.format(here),
