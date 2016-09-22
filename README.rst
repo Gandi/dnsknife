@@ -32,7 +32,7 @@ local caches) for a match:
 .. code:: python
 
     >>> from dnsknife import Checker
-    >>> Checker('example.com', direct=True).has_txt('dbef8938bef', ['www'], ignore_case=True)
+    >>> Checker('example.com', direct=True).has_txt('dbef8938bef', ignore_case=True)
     False
 
 Querying a few dozen things at the same time:

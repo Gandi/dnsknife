@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import mock
 import os
 import unittest
+import time
 
 import dns.name
 import dns.rdatatype
@@ -60,22 +61,37 @@ class TestChecker(unittest.TestCase):
         rmock.assert_called_with(dns.name.from_text('www.ten.pm'),
                                  'A', '1.2.3.4', False)
 
+    def test_has_txt_multivalues(self, rmock, cmock):
+        rmock.return_value = FakeFuture('ten.pm', 'TXT', ['12345'])
+        self.assertTrue(Checker('ten.pm').has_txt(['1','2','12345']))
+
     def test_has_no_txt(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', ['12345'])
-        self.assertFalse(Checker('ten.pm').has_txt('1234', ['www']))
+        self.assertFalse(Checker('ten.pm').has_txt('1234'))
 
     def test_has_txt(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', ['1234'])
-        self.assertTrue(Checker('ten.pm').has_txt('1234', ['www']))
+        self.assertTrue(Checker('ten.pm').has_txt('1234'))
 
     def test_has_txt_caseinsensitive(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', ['1234ABC'])
-        self.assertTrue(Checker('ten.pm').has_txt('1234abc', ['www']))
+        self.assertTrue(Checker('ten.pm').has_txt('1234abc'))
 
     def test_has_txt_casesensitive(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', ['1234ABC'])
-        self.assertFalse(Checker('ten.pm').has_txt('1234abc', ['www'],
+        self.assertFalse(Checker('ten.pm').has_txt('1234abc',
                                                    ignore_case=False))
+
+    def test_challenge(self, rmock, cmok):
+        chal = Checker('ten.pm').challenge('secret')
+        rmock.return_value = FakeFuture('ten.pm', 'TXT', [chal.upper()])
+        self.assertTrue(Checker('ten.pm').has_challenge('secret'))
+
+    @mock.patch('time.time', return_value=1400000000.0)
+    def test_challenge_from_past(self, tmok, rmock, cmok):
+        rmock.return_value = FakeFuture('ten.pm', 'TXT',
+                                        ['97f36c185ac75eda5b57e253c888a4e0'])
+        self.assertTrue(Checker('ten.pm').has_challenge('secret'))
 
     def test_mx(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'MX', ['20 a.', '30 c.',

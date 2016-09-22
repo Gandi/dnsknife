@@ -28,6 +28,7 @@ import dns.rdataclass
 import dns.rdatatype
 import dns.resolver
 
+from . import challenge
 from . import dnssec
 from . import exceptions
 from . import monkeypatch  # noqa
@@ -113,12 +114,12 @@ class Checker(object):
         except (dns.resolver.NoAnswer, exceptions.BadRcode):
             pass
 
-    def has_txt(self, value, also_check=None, ignore_case=True):
-        """Find if the specified TXT record in zone exists
-        at given names (default @, also_check list of additional
-        names). Eventually ignore case."""
-        if not also_check:
-            also_check = []
+    def has_txt(self, values, name='@', ignore_case=True):
+        """Find if one of the specified TXT record in zone exists
+        at a given name. Eventually ignore case."""
+
+        if isinstance(values, str):
+            values = [values]
 
         if ignore_case:
             def equals(a, b):
@@ -127,15 +128,22 @@ class Checker(object):
             def equals(a, b):
                 return a == b
 
-        for name in [''] + also_check:
-            try:
-                resp = self.query_relative(name, dns.rdatatype.TXT)
-                for rr in resp:
-                    if any(equals(value, v) for v in rr.strings):
-                        return True
-            except (Exception) as e:
-                self.notify_error(e)
+        try:
+            resp = self.query_relative(name, dns.rdatatype.TXT)
+            for rr in resp:
+                if any(equals(v, good) for good in values for v in rr.strings):
+                    return True
+        except (Exception) as e:
+            self.notify_error(e)
+
         return False
+
+    def challenge(self, secret, validity=86400):
+        return challenge.valid_tokens(self.domain, secret, validity)[-1]
+
+    def has_challenge(self, secret, name='@', validity=86400):
+        valid = challenge.valid_tokens(self.domain, secret, validity)
+        return self.has_txt(valid, name)
 
     def _uri_to_txt(self, ans):
         txt = ans.rrset[0].target
