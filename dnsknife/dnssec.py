@@ -42,24 +42,35 @@ def signers(answer):
 def signed_by(answer, dnskey):
     """Checks that a given dns.resolver.Answer has been signed
     by the given dns Key object."""
+
+    errs = []
+
     rrset, rrsig = rrset_rrsig(answer.response)
 
     for sig in rrsig:
         if sig.key_tag == dns.dnssec.key_id(dnskey):
             try:
                 dns.dnssec.validate_rrsig(rrset, sig, {sig.signer: [dnskey]})
-                return True
-            except:
+                return True, None
+            except Exception, e:
+                errs.append(str(e))
                 pass
-    return False
+    return (False, errs)
 
 
-def trusted(answer):
+def trusted(answer, raise_on_errors=False):
     """Check if one signer in the dns.resolver.Answer is trusted"""
     from .resolver import query
+    errs = {}
     for signer in signers(answer).keys():
         keyans = query(signer, dns.rdatatype.DNSKEY, True)
         for key in keyans:
-            if signed_by(answer, key):
+            sig, key_errs = signed_by(answer, key)
+            if sig:
                 return True
+            errs[dns.dnssec.key_id(key)] = key_errs
+
+    if raise_on_errors:
+        raise exceptions.NoTrust(errs)
+
     return False

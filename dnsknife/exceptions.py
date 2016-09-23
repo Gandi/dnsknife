@@ -12,6 +12,10 @@ class NoDNSSEC(Exception):
     validation for our lookup, which might be for many reasons"""
 
 
+class NoTrust(Exception):
+    """Whenever trusted() fails"""
+
+
 class BadSignerName(Exception):
     pass
 

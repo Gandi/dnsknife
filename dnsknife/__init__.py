@@ -33,7 +33,8 @@ from . import dnssec
 from . import exceptions
 from . import monkeypatch  # noqa
 from . import resolver
-from .resolver import set_nameservers, set_socks5_server, query  # noqa
+from .resolver import (set_nameservers, set_socks5_server,
+                       query, set_edns0_size)  # noqa
 
 
 __version__ = '0.9'
@@ -220,9 +221,9 @@ class Checker(object):
         with resolver.Resolver(timeout=5) as r:
             for ns in self.ns_addrs:
                 cds[ns] = r.query_at(self.domain, dns.rdatatype.CDNSKEY,
-                                     ns, True)
+                                     ns, self.dnssec)
                 dnskeys[ns] = r.query_at(self.domain, dns.rdatatype.DNSKEY,
-                                         ns, True)
+                                         ns, self.dnssec)
 
         for ns in self.ns_addrs:
             # 1.
@@ -237,9 +238,11 @@ class Checker(object):
 
             # 2.
             for key in cds[ns]:
-                if not dnssec.signed_by(dnskeys[ns], key):
+                sig, errs = dnssec.signed_by(dnskeys[ns], key)
+                if not sig:
                     errstr = ('{} did not sign '
-                              'DNSKEY RR'.format(dns.dnssec.key_id(key)))
+                              'DNSKEY RR ({})'.format(dns.dnssec.key_id(key),
+                                                      errs))
                     raise exceptions.BadCDNSKEY(errstr)
 
         for ns in self.ns_addrs:

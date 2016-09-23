@@ -22,6 +22,7 @@ with dnsknife.resolver.AsyncResolver() as r:
 future.get()
 """
 
+edns0_size = 4096
 system_resolver = dns.resolver.Resolver()
 pysocks = None
 
@@ -34,6 +35,10 @@ def set_socks5_server(addr, port=1080, username=None, password=None):
                             password)
     global pysocks
     pysocks = socks
+
+
+def set_edns0_size(size):
+    edns0_size = size
 
 
 can_ipv6 = False
@@ -108,8 +113,7 @@ def query(name, rdtype, dnssec=False, raise_on_no_answer=True):
     by default. Eventually using the local NS AD bit as a trust source."""
     # Query for our name, let NXDOMAIN raise
     res = system_resolver
-    if dnssec:
-        res.use_edns(0, dns.flags.DO, 0)
+    res.use_edns(0, dns.flags.DO, edns0_size)
 
     # Convenience for external callers
     if isinstance(rdtype, str):
@@ -120,7 +124,7 @@ def query(name, rdtype, dnssec=False, raise_on_no_answer=True):
     # Double check we have DNSSEC validation
     if dnssec:
         if not answer.response.flags & dns.flags.AD:
-            raise exceptions.NoDNSSEC
+            raise exceptions.NoDNSSEC('No AD flag from resolver')
 
     return answer
 
@@ -234,7 +238,7 @@ class TCPQuery(UDPQuery):
 
 class FutureAnswer(Future):
     def __init__(self, context, req, where, timeout=0, source=None,
-                 source_port=0):
+                 source_port=0, validate=False):
         Future.__init__(self, 0)
         self.context = context
         self.net_args = (where, source, source_port)
@@ -246,6 +250,8 @@ class FutureAnswer(Future):
         self.query = UDPQuery(self.req, *self.net_args, timeout=timeout)
         self.query.on_ready = self.notify_ready
         self.context.register(self.query)
+
+        self.validate = validate
 
     def notify_ready(self):
         try:
@@ -281,9 +287,8 @@ class FutureAnswer(Future):
         answer = dns.resolver.Answer(q.question[0].name, q.question[0].rdtype,
                                      q.question[0].rdclass, ans)
 
-        if self.req.ednsflags & dns.flags.DO:
-            if not dnssec.trusted(answer):
-                raise exceptions.NoDNSSEC
+        if self.validate:
+            dnssec.trusted(answer, raise_on_errors=True)
 
         return answer
 
@@ -309,11 +314,10 @@ class Resolver:
                 addr = (ns_addr_insecure(addr)[0], 53)
 
         req = dns.message.make_query(qname, rdtype, rdclass)
-        if dnssec:
-            req.use_edns(0, dns.flags.DO, 0)
+        req.use_edns(0, dns.flags.DO, edns0_size)
 
         return FutureAnswer(self, req, addr, self.timeout, self.source,
-                            self.source_port)
+                            self.source_port, dnssec)
 
     def query(self, qname, rdtype, dnssec=False):
         ns = system_resolver.nameservers
