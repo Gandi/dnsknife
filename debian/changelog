@@ -1,8 +1,11 @@
-python-dnsknife (0.8) UNRELEASED; urgency=medium
+python-dnsknife (0.10) unstable; urgency=medium
 
-  * Rel 0.8
+  * Release 0.10
+  * TXT challenge support
+  * TPDA fixes
+  * DNSSEC fixes
 
- -- Pascal Bouchareine <pascal@gandi.net>  Sun, 12 Jun 2016 16:28:58 -0700
+ -- Pascal Bouchareine <pascal@gandi.net>  Fri, 23 Sep 2016 12:27:48 -0700
 
 python-dnsknife (0.7) unstable; urgency=medium
 
