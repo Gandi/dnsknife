@@ -1,3 +1,9 @@
+python-dnsknife (0.11.1) unstable; urgency=medium
+
+  * Internal build .1
+
+ -- Pascal Bouchareine <pascal@gandi.net>  Wed, 05 Oct 2016 14:44:19 -0700
+
 python-dnsknife (0.11) unstable; urgency=medium
 
   * Release 0.11
