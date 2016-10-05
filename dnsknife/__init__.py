@@ -37,7 +37,7 @@ from .resolver import (set_nameservers, set_socks5_server,
                        query, set_edns0_size)  # noqa
 
 
-__version__ = '0.10'
+__version__ = '0.11'
 
 
 @contextlib.contextmanager

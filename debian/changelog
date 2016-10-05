@@ -1,3 +1,12 @@
+python-dnsknife (0.11) unstable; urgency=medium
+
+  * Release 0.11
+  * Challenge format changes
+  * Python3 compat fixes
+  * OSX compat fixes
+
+ -- Pascal Bouchareine <pascal@gandi.net>  Wed, 05 Oct 2016 13:16:02 -0700
+
 python-dnsknife (0.10) unstable; urgency=medium
 
   * Release 0.10
