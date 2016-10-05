@@ -2,14 +2,22 @@
 POC for a stateless challenge/response TXT domain ownership validation.
 """
 
+import hashlib
 import hmac
 import time
 
 
 def valid_tokens(domain, secret, validity=86400):
+    if isinstance(secret, str):
+        secret = secret.encode()
+
+    if isinstance(domain, str):
+        domain = domain.encode('idna')
+
     def token_at(when):
-        h = hmac.HMAC(secret)
-        h.update(domain + str(round(when/validity)))
+        h = hmac.HMAC(secret, digestmod=hashlib.sha256)
+        h.update(domain)
+        h.update(str(int(when/validity)).encode())
         return h.hexdigest()
 
     # We're not totally strict on validity, but want
@@ -21,4 +29,4 @@ def valid_tokens(domain, secret, validity=86400):
     validity = int(validity/2)
     past = now - 3*validity
 
-    return [token_at(when) for when in xrange(past, now, validity)]
+    return [token_at(when) for when in range(past, now, validity)]

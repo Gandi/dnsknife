@@ -110,7 +110,9 @@ class Checker(object):
         as a string, each record separated by a newline"""
         try:
             resp = self.query_relative(name, dns.rdatatype.TXT)
-            return '\n'.join(''.join(r.strings) for r in resp
+            def strvalue(r):
+                return ''.join([x.decode() for x in r.strings])
+            return '\n'.join(strvalue(r) for r in resp
                              if r.rdtype == dns.rdatatype.TXT)
         except (dns.resolver.NoAnswer, exceptions.BadRcode):
             pass
@@ -130,9 +132,9 @@ class Checker(object):
                 return a == b
 
         try:
-            resp = self.query_relative(name, dns.rdatatype.TXT)
-            for rr in resp:
-                if any(equals(v, good) for good in values for v in rr.strings):
+            resp = self.txt(name)
+            for txt in resp.split('\n'):
+                if any(equals(txt, good) for good in values):
                     return True
         except (Exception) as e:
             self.notify_error(e)

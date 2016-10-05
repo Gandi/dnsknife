@@ -52,7 +52,7 @@ def signed_by(answer, dnskey):
             try:
                 dns.dnssec.validate_rrsig(rrset, sig, {sig.signer: [dnskey]})
                 return True, None
-            except Exception, e:
+            except Exception as e:
                 errs.append(str(e))
                 pass
     return (False, errs)

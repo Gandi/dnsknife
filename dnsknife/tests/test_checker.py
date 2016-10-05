@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import mock
 import os
 import unittest
-import time
 
 import dns.name
 import dns.rdatatype
@@ -63,7 +62,7 @@ class TestChecker(unittest.TestCase):
 
     def test_has_txt_multivalues(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', ['12345'])
-        self.assertTrue(Checker('ten.pm').has_txt(['1','2','12345']))
+        self.assertTrue(Checker('ten.pm').has_txt(['1', '2', '12345']))
 
     def test_has_no_txt(self, rmock, cmock):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', ['12345'])
@@ -87,10 +86,11 @@ class TestChecker(unittest.TestCase):
         rmock.return_value = FakeFuture('ten.pm', 'TXT', [chal.upper()])
         self.assertTrue(Checker('ten.pm').has_challenge('secret'))
 
-    @mock.patch('time.time', return_value=1400000000.0)
+    @mock.patch('time.time', return_value=1475608085)
     def test_challenge_from_past(self, tmok, rmock, cmok):
         rmock.return_value = FakeFuture('ten.pm', 'TXT',
-                                        ['97f36c185ac75eda5b57e253c888a4e0'])
+                                        ['d7ab2f33a50b79b46f04d28ccebbf8425'
+                                         '0584208b649def4f65d7ece28a2377b'])
         self.assertTrue(Checker('ten.pm').has_challenge('secret'))
 
     def test_mx(self, rmock, cmock):
