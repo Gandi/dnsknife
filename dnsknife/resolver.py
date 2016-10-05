@@ -296,7 +296,7 @@ class FutureAnswer(Future):
 class Resolver:
     def __init__(self, timeout=0, source=None, source_port=0):
         self.futures = {}
-        self.poll = select.epoll()
+        self.poll = select.poll()
         self.source_port = source_port
         self.source = source
         self.timeout = timeout
@@ -327,7 +327,7 @@ class Resolver:
 
     def register(self, future):
         sock = future.get_sock()
-        self.poll.register(sock, select.EPOLLIN | select.EPOLLOUT)
+        self.poll.register(sock.fileno(), select.POLLIN | select.POLLOUT)
         self.futures[sock.fileno()] = future
 
     def unregister(self, fd):
@@ -338,13 +338,13 @@ class Resolver:
         if self.futures:
             for (fd, ev) in self.poll.poll(1):
                 future = self.futures[fd]
-                if ev & select.EPOLLOUT:
+                if ev & select.POLLOUT:
                     if not future.writable():
-                        self.poll.modify(fd, select.EPOLLIN)
-                if ev & select.EPOLLIN:
+                        self.poll.modify(fd, select.POLLIN)
+                if ev & select.POLLIN:
                     if not future.readable():
                         self.unregister(fd)
-                if ev & (select.EPOLLERR | select.POLLHUP):
+                if ev & (select.POLLERR | select.POLLHUP):
                     self.unregister(fd)
 
         for fd, future in self.futures.items():
