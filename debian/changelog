@@ -1,3 +1,9 @@
+python-dnsknife (0.12) unstable; urgency=medium
+
+  * Add support for CDS
+
+ -- Pascal Bouchareine <pascal@gandi.net>  Mon, 10 Oct 2016 15:59:12 -0700
+
 python-dnsknife (0.11.1) unstable; urgency=medium
 
   * Internal build .1
