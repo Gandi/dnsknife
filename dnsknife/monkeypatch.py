@@ -2,11 +2,20 @@ import dns.name
 import dns.rdata
 import dns.rdataclass
 import dns.rdatatype
+import dns.rdtypes.ANY.DS
 import dns.rdtypes.ANY.DNSKEY
+
+dns.rdatatype.CDS = 59
+dns.rdatatype._by_text['CDS'] = dns.rdatatype.DS
+dns.rdatatype._by_value[59] = 'CDS'
 
 dns.rdatatype.CDNSKEY = 60
 dns.rdatatype._by_text['CDNSKEY'] = dns.rdatatype.CDNSKEY
 dns.rdatatype._by_value[60] = 'CDNSKEY'
+
+dns.rdata._rdata_modules[(dns.rdataclass.IN,
+                          dns.rdatatype.CDS)] = dns.rdtypes.ANY.DS
+dns.rdtypes.ANY.DS.CDS = dns.rdtypes.ANY.DS.DS
 
 dns.rdata._rdata_modules[(dns.rdataclass.IN,
                           dns.rdatatype.CDNSKEY)] = dns.rdtypes.ANY.DNSKEY

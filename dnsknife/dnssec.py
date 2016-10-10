@@ -74,3 +74,16 @@ def trusted(answer, raise_on_errors=False):
         raise exceptions.NoTrust(errs)
 
     return False
+
+
+def matching_key(dnskeys, ds):
+    """Return the key from dnskeys matching this DS"""
+    dtype = {
+        1: 'SHA1',
+        2: 'SHA256',
+        4: 'SHA384',
+    }.get(ds.digest_type, 'SHA256')
+    for k in dnskeys:
+        candidate = dns.dnssec.make_ds(dnskeys.name, k, dtype)
+        if candidate.digest == ds.digest:
+            return k

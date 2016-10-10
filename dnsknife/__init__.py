@@ -207,53 +207,86 @@ class Checker(object):
                 pass
 
     def cdnskey(self):
-        """ 1. All nameservers should agree on the CDNSKEY set
-            2. The CDNSKEY should already be signing the DNSKEY RRSET
-            3. Presence of 0 algorithm means remove everything. Cannot
-               be mixed with other valid CDNSKEYs.
-            4. Older CDNSKEY should not overwrite newer DATA (DS)
+        """ 1. All NS should agree on the CDS set
+            2. Presence of 0 algorithm means remove everything
+            2. DNSKEY RRSET should include the appropriate keys
+            4. Older CDS should not overwrite newer DATA (DS)
                RFC states that. I don't get it.
-            5. This should be DNSSEC validated. Yep.
+
+            5. This should be DNSSEC validated - up to the caller here
+               to properly set dnssec validation if needed. That allows
+               reporting/.. and initial DS install.
         """
         cds = {}
+        ckeys = {}
         dnskeys = {}
 
-        cds_rrset = None
+        final_ckeys = None
+        final_dnskeys = None
 
         with resolver.Resolver(timeout=5) as r:
             for ns in self.ns_addrs:
-                cds[ns] = r.query_at(self.domain, dns.rdatatype.CDNSKEY,
-                                     ns, self.dnssec)
                 dnskeys[ns] = r.query_at(self.domain, dns.rdatatype.DNSKEY,
                                          ns, self.dnssec)
+                ckeys[ns] = r.query_at(self.domain, dns.rdatatype.CDNSKEY,
+                                     ns, self.dnssec)
+                cds[ns] = r.query_at(self.domain, dns.rdatatype.CDS,
+                                     ns, self.dnssec)
 
         for ns in self.ns_addrs:
-            # 1.
-            cds[ns] = cds[ns].get()
             dnskeys[ns] = dnskeys[ns].get()
-            if cds_rrset:
-                if set(cds[ns]) != cds_rrset:
-                    errstr = ('{} disagrees on CDNSKEY '
-                              'RRSet ({}!={})'.format(ns, set(cds), cds_rrset))
+
+            try:
+                ckeys[ns] = ckeys[ns].get()
+            except dns.resolver.NoAnswer:
+                cds[ns] = cds[ns].get() # Let raise, at least one of those
+                                        # needs to be set
+                ckeys[ns] = [dnssec.matching_key(dnskeys[ns], ds) for ds
+                             in cds[ns]]
+
+            # We need all keys in the DNSKEY RRSET
+            if not all(ckeys[ns]):
+                failed = [ds for ds in cds[ns] if not
+                          dnssec.matching_key(dnskeys[ns], ds)]
+                raise exceptions.BadCDNSKEY('{} not in '
+                                            'DNSKEY RRSET'.format(failed))
+
+            # 1. All NS should have the same DNSKEY RRs
+            if final_dnskeys:
+                if set(dnskeys[ns]) != set(final_dnskeys):
+                    errstr = ('{} disagrees on DNSKEYS '
+                              'RRSET ({}!={})'.format(ns, set(dnskeys[ns]),
+                                                      final_dnskeys))
                     raise exceptions.BadCDNSKEY(errstr)
-            cds_rrset = set(cds[ns])
 
-            # 2.
-            for key in cds[ns]:
-                sig, errs = dnssec.signed_by(dnskeys[ns], key)
-                if not sig:
-                    errstr = ('{} did not sign '
-                              'DNSKEY RR ({})'.format(dns.dnssec.key_id(key),
-                                                      errs))
+            # 1. All NS should have the same CDS/CDNSKEY RRs
+            if final_ckeys:
+                if set(ckeys[ns]) != set(final_ckeys):
+                    errstr = ('{} disagrees on CDNSKEY/CDS '
+                              'RRSet ({}!={})'.format(ns, set(ckeys[ns]),
+                                                      final_ckeys))
                     raise exceptions.BadCDNSKEY(errstr)
 
-        for ns in self.ns_addrs:
-            # 3.
-            if any(key.algorithm == 0 for key in cds[ns]):
-                if len(cds[ns]) == 1:
-                    # Special case delete
-                    raise exceptions.DeleteDS
-                else:
-                    raise exceptions.BadCDNSKEY('Alg0 and other keys found')
+            final_dnskeys = dnskeys[ns]
+            final_ckeys = ckeys[ns]
 
-        return cds_rrset
+        # 2. 0 is a deletion, but don't allow more than one key
+        # in that case
+        if any(key.algorithm == 0 for key in final_ckeys):
+            if len(final_ckeys) == 1:
+                # Special case delete
+                raise exceptions.DeleteDS
+            else:
+                raise exceptions.BadCDNSKEY('Alg0 and multiple keys found')
+
+
+        # 3. Double check the new key is also signing the zone,
+        # otherwise pushing the DS would break things
+        for key in final_ckeys:
+            sig, errs = dnssec.signed_by(final_dnskeys, key)
+            if not sig:
+                errstr = ('{} did not sign '
+                        'DNSKEY RR (errs:{})'.format(key, errs))
+                raise exceptions.BadCDNSKEY(errstr)
+
+        return final_ckeys
