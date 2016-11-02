@@ -46,7 +46,19 @@ def as_dnssec(c):
                   errors=c.err_fn, nameservers=c.nameservers)
 
 
-class Checker(object):
+class TypeAware(object):
+    """Convenient trait"""
+    def partial_query(self, rtype):
+        def query_with_default_name(name=''):
+            return self.query_relative(name, rtype)
+        return query_with_default_name
+
+    def __getattribute__(self, name):
+        if name in dns.rdatatype._by_text.keys():
+            return self.partial_query(name)
+        return super(TypeAware, self).__getattribute__(name)
+
+class Checker(TypeAware):
     def __init__(self, domain, dnssec=False, direct=True,
                  errors=None, nameservers=None):
         self.domain = domain

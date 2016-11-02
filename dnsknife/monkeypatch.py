@@ -6,7 +6,7 @@ import dns.rdtypes.ANY.DS
 import dns.rdtypes.ANY.DNSKEY
 
 dns.rdatatype.CDS = 59
-dns.rdatatype._by_text['CDS'] = dns.rdatatype.DS
+dns.rdatatype._by_text['CDS'] = dns.rdatatype.CDS
 dns.rdatatype._by_value[59] = 'CDS'
 
 dns.rdatatype.CDNSKEY = 60
