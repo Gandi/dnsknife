@@ -16,6 +16,7 @@ proxy support.
 from __future__ import absolute_import
 
 import contextlib
+import hashlib
 
 import dns.dnssec
 import dns.exception
@@ -217,6 +218,12 @@ class Checker(TypeAware):
                 return self._uri_to_txt(answer.get())
             except:
                 pass
+
+    def openpgp(self, localpart):
+        """Look for OPENPGPKEY record for local part."""
+        localpart = localpart.lower().encode('utf8')
+        hashed = hashlib.sha256(localpart).hexdigest()[:56]
+        return self.OPENPGPKEY('{}._openpgpkey'.format(hashed))
 
     def cdnskey(self):
         """ 1. All NS should agree on the CDS set

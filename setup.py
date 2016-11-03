@@ -15,10 +15,7 @@ requires = [
     'six'
 ]
 
-if sys.version_info > (3,):
-    requires.append('dnspython3')
-else:
-    requires.append('dnspython')
+requires.append('dnspython>=1.16.0')
 
 # commit 9f1c3988b64d4d95868825ecc48b00c1474bbf37 in PySocks
 # introduced udp support. First available version is 1.5.6
