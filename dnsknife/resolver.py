@@ -301,7 +301,19 @@ class Resolver:
         self.source = source
         self.timeout = timeout
 
-    def query_at(self, qname, rdtype, addr, dnssec=False):
+    def query_at(self, qname, rdtype, addr, dnssec=False, subnet=None,
+                 prefixlen=None):
+        """Query for a given name/type at given nameserver.
+        qname: The query name (dns.name or string)
+        rdtype: The query type (some dns.rdatatype or string)
+        addr: The server address (tuple (addr,port), string hostname
+                                  or string ip address)
+        dnssec: Raise if no dnssec validation (bool)
+        subnet: Client address for EDNS client subnet information (string)
+        prefixlen: EDNS client subnet prefix length (int)
+        """
+
+
         rdclass = dns.rdataclass.IN
         if isinstance(rdtype, str):
             rdtype = dns.rdatatype.from_text(rdtype)
@@ -314,16 +326,28 @@ class Resolver:
                 addr = (ns_addr_insecure(addr)[0], 53)
 
         req = dns.message.make_query(qname, rdtype, rdclass)
-        req.use_edns(0, dns.flags.DO, edns0_size)
+        opts = []
+        if subnet:
+            opts = [dns.edns.ECSOption(subnet, prefixlen)]
+        req.use_edns(0, dns.flags.DO, edns0_size, options=opts)
 
         return FutureAnswer(self, req, addr, self.timeout, self.source,
                             self.source_port, dnssec)
 
-    def query(self, qname, rdtype, dnssec=False):
+    def query(self, qname, rdtype, dnssec=False, subnet=None, prefixlen=None):
+        """Query for a given name/type.
+        qname: The query name (dns.name or string)
+        rdtype: The query type (some dns.rdatatype or string)
+        dnssec: Raise if no dnssec validation (bool)
+        subnet: Client address for EDNS client subnet information (string)
+        prefixlen: EDNS client subnet prefix length (int)
+        """
+
         ns = system_resolver.nameservers
         if not len(ns):
             raise exceptions.NsLookupError('no nameservers')
-        return self.query_at(qname, rdtype, random.sample(ns, 1)[0], dnssec)
+        return self.query_at(qname, rdtype, random.sample(ns, 1)[0], dnssec,
+                             subnet, prefixlen)
 
     def register(self, future):
         sock = future.get_sock()
