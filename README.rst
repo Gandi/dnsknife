@@ -35,6 +35,18 @@ local caches) for a match:
     >>> Checker('example.com', direct=True).has_txt('dbef8938bef', ignore_case=True)
     False
 
+Or, if you are into domain challenges:
+
+.. code:: python
+
+    >>> from dnsknife import Checker
+
+    >>> Checker('example.com').has_challenge('secretkey')
+    False
+
+    >>> Checker('example.com').challenge('secretkey')
+    'f1ef9be83f844d64f8f2bea8bcfb9f7f4cf0792487ae24707937344dbec8f4fb'
+
 Querying a few dozen things at the same time:
 
 .. code:: python
