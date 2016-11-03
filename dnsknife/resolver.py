@@ -85,16 +85,24 @@ def make_socket(proto, addr, source=None, source_port=0):
 
 
 def ns_for(domain, dnssec=False):
+    if isinstance(domain, str):
+        domain = dns.name.from_text(domain)
+
     answer = query(domain, dns.rdatatype.NS, dnssec,
                     raise_on_no_answer=False)
 
-    # If we have authority referral, use it
+    # If we have authority referral up, use it
     if (answer.response.rcode() == dns.rcode.NOERROR
         and not answer.rrset):
-        return ns_for(answer.response.authority[0].name, dnssec)
+        for auth in answer.response.authority:
+            if domain.is_subdomain(auth.name):
+                return ns_for(auth.name, dnssec)
+    else:
+        return [ns.target.to_text() for ns in answer.rrset]
 
-    return [ns.target.to_text() for ns in answer.rrset]
-
+    # If CNAME != question, try parent
+    if answer.canonical_name != domain:
+        return ns_for(domain.parent(), dnssec)
 
 def ns_addrs_for(domain, dnssec=False):
     ns_list = ns_for(domain, dnssec)
