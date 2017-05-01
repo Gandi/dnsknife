@@ -240,7 +240,7 @@ class Checker(TypeAware):
         ckeys = {}
         dnskeys = {}
 
-        final_ckeys = None
+        final_ckeys = []
         final_dnskeys = None
 
         with resolver.Resolver(timeout=5) as r:
