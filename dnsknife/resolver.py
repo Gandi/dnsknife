@@ -24,6 +24,9 @@ future.get()
 
 edns0_size = 4096
 system_resolver = dns.resolver.Resolver()
+# resolv.conf timeout option is not parsed yet, work around that
+system_resolver.timeout = 1
+system_resolver.cache = dns.resolver.Cache(5) # Cache expires fast
 pysocks = None
 
 
@@ -59,7 +62,13 @@ def ip_family(addr):
         socket.inet_pton(socket.AF_INET6, addr)
         return socket.AF_INET6
     except:
+        pass
+
+    try:
+        socket.inet_pton(socket.AF_INET, addr)
         return socket.AF_INET
+    except:
+        pass
 
 
 def make_socket(proto, addr, source=None, source_port=0):
@@ -83,19 +92,60 @@ def make_socket(proto, addr, source=None, source_port=0):
             pass
     return sock
 
+def maybe_pollute_cache_from_additional(answer):
+    """
+    This is ugly - In case we're looking at a borken NS
+    it might have been collected from the roots by our cache.
+    The process is:
+    a/ Local cache gets NS+additional
+    b/ NS is unreachable, cannot get an actual answer RRSET: timeout
+       or servfail
+    c/ We re-ask the local cache with norecurse: got the NS & Glue
+    d/ We pollute the cache. So if we lookup that NS name, it will
+       get resolved to this IP.
+
+    This is only to help RFC1918 hosts to be able to lookup NS without
+    direct access to root servers. We should find a better, cleaner way
+    to locate NS when we have public IP or socks support.
+
+    Okay this is so ugly I'm not even using it.
+    """
+    nsnames = (item.target for x in answer.response.authority if
+        x.rdtype == dns.rdatatype.NS for item in x.items)
+    for add in answer.response.additional:
+        if add.name in nsnames:
+            rrset = answer.response.find_rrset(answer.response.answer, add.name,
+                    add.rdclass, add.rdtype, create=True)
+            rrset.items += add.items
+            cachedA = dns.resolver.Answer(add.name, add.rdtype, add.rdclass,
+                    answer.response, False)
+            system_resolver.cache.put((add.name, add.rdtype, add.rdclass),
+                    cachedA)
+
 
 def ns_for(domain, dnssec=False):
     if isinstance(domain, str):
         domain = dns.name.from_text(domain)
 
-    answer = query(domain, dns.rdatatype.NS, dnssec,
-                    raise_on_no_answer=False)
+    try:
+        answer = query(domain, dns.rdatatype.NS, dnssec,
+                        raise_on_no_answer=False)
+    # For broken NS, we'll get timeouts and SERVFAILs
+    except dns.resolver.NoNameservers:
+        # In that case, don't recurse and try to find something anyway
+        answer = query(domain, dns.rdatatype.NS, dnssec,
+                        raise_on_no_answer=False, recurse=False)
+        for auth in answer.response.authority:
+            if (domain.is_subdomain(auth.name) and
+              auth.rdtype == dns.rdatatype.NS):
+                return [r.target.to_text() for r in auth.items]
+        return []
 
     # If we have authority referral up, use it
     if (answer.response.rcode() == dns.rcode.NOERROR
         and not answer.rrset):
         for auth in answer.response.authority:
-            if domain.is_subdomain(auth.name):
+            if domain != auth.name and domain.is_subdomain(auth.name):
                 return ns_for(auth.name, dnssec)
     else:
         return [ns.target.to_text() for ns in answer.rrset]
@@ -116,12 +166,19 @@ def ns_addrs_for(domain, dnssec=False):
     return addrs
 
 
-def query(name, rdtype, dnssec=False, raise_on_no_answer=True):
+def query(name, rdtype, dnssec=False, raise_on_no_answer=True,
+        recurse=True):
     """Lookup. Using the locally configured resolvers
     by default. Eventually using the local NS AD bit as a trust source."""
     # Query for our name, let NXDOMAIN raise
     res = system_resolver
     res.use_edns(0, dns.flags.DO, edns0_size)
+
+    # Bad side effect here
+    if not recurse:
+        res.set_flags(0)
+    else:
+        res.set_flags(dns.flags.RD)
 
     # Convenience for external callers
     if isinstance(rdtype, str):
@@ -141,10 +198,12 @@ def ns_addr_insecure(nameserver):
     """Find the nameserver's possible IP addresses. No DNSSEC
     is required here, we'll just validate the end result."""
     ans = []
-    for family, socktype, proto, name, sockaddr in \
-            socket.getaddrinfo(nameserver, 53):
-        if proto == socket.IPPROTO_UDP:
-            ans.append(sockaddr[0])
+    for rdtype in (dns.rdatatype.A, dns.rdatatype.AAAA):
+        ret = query(nameserver, rdtype, raise_on_no_answer=False)
+        for rrset in ret.response.answer:
+            if rrset.rdtype in (dns.rdatatype.A, dns.rdatatype.AAAA):
+                ans += [x.to_text() for x in rrset.items]
+
     if len(ans) == 0:
         raise exceptions.NsLookupError(nameserver)
     return ans

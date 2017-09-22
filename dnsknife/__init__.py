@@ -199,12 +199,12 @@ class Checker(TypeAware):
         except dns.resolver.NoAnswer:
             return self.txt_spf()
 
-    def tpda_endpoint(self, name):
+    def tpda_endpoint(self, name, timeout=1):
         """Return the endpoint according to this domain DNS operator
         setup. (Lookup _tpda service name as an URI on each NS)."""
         answers = []
 
-        with resolver.Resolver(timeout=5) as r:
+        with resolver.Resolver(timeout=timeout) as r:
             for ns in self.ns:
                 qname = '{}._tpda._tcp.{}'.format(name, ns)
                 if self.direct:
