@@ -68,7 +68,7 @@ Scanning a zone:
 .. code:: python
 
     In [16]: from dnsknife.scanner import Scanner
-    In [9]: time list(scanner.Scanner('google.com').scan())
+    In [9]: time list(Scanner('google.com').scan())
     CPU times: user 476 ms, sys: 28 ms, total: 504 ms
     Wall time: 2.4 s
     Out[9]: 
