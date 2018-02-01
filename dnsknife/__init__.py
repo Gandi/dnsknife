@@ -50,8 +50,12 @@ def as_dnssec(c):
 class TypeAware(object):
     """Convenient trait"""
     def partial_query(self, rtype):
-        def query_with_default_name(name=''):
-            return self.query_relative(name, rtype)
+        """Returns an answer object"""
+        def query_with_default_name(name='', text=False):
+            ans = self.query_relative(name, rtype)
+            if not text:
+                return ans
+            return [rr.to_text() for rr in ans]
         return query_with_default_name
 
     def __getattribute__(self, name):
