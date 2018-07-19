@@ -1,6 +1,9 @@
 from dns.resolver import NoAnswer  # noqa
+from dns.resolver import NXDOMAIN # noqa
 from dns.exception import Timeout  # noqa
 
+
+DomainNotFound = NXDOMAIN
 
 class BadAnswer(Exception):
     """On low level errors"""
@@ -51,10 +54,6 @@ class NoTPDA(Exception):
 
 class NoSignatureMatch(Exception):
     """No key matched the given signature"""
-
-
-class DomainNotFound(Exception):
-    pass
 
 
 class TPDANotEnabled(Exception):
