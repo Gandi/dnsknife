@@ -160,8 +160,7 @@ def ns_addrs_for(domain, dnssec=False):
     addrs = sum((ns_addr_insecure(ns) for ns in ns_list), [])
 
     if not can_ipv6:
-        addrs = filter(lambda addr:
-                       ip_family(addr) == socket.AF_INET, addrs)
+        addrs = [addr for addr in addrs if ip_family(addr) == socket.AF_INET]
 
     return addrs
 
