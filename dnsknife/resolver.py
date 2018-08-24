@@ -386,7 +386,7 @@ class Resolver:
             rdtype = dns.rdatatype.from_text(rdtype)
         if isinstance(qname, str):
             qname = dns.name.from_text(qname)
-        if isinstance(addr, str):
+        if not isinstance(addr, tuple):
             if ip_family(addr):
                 addr = (addr, 53,)
             else:
