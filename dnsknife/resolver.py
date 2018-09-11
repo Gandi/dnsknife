@@ -154,15 +154,28 @@ def ns_for(domain, dnssec=False):
     if answer.canonical_name != domain:
         return ns_for(domain.parent(), dnssec)
 
-def ns_addrs_for(domain, dnssec=False):
-    ns_list = ns_for(domain, dnssec)
 
-    addrs = sum((ns_addr_insecure(ns) for ns in ns_list), [])
+def addr_insecure(host, ipv6=True):
+    """Insecure lookup of A - mostly used to discover nameservers,
+    do not use for other purposes if security is a concern."""
+    ans = []
+    rdtypes = [dns.rdatatype.A]
+    if ipv6:
+        rdtypes.append(dns.rdatatype.AAAA)
 
-    if not can_ipv6:
-        addrs = [addr for addr in addrs if ip_family(addr) == socket.AF_INET]
+    for rdtype in rdtypes:
+        ret = query(host, rdtype, raise_on_no_answer=False)
+        for rrset in ret.response.answer:
+            if rrset.rdtype in (dns.rdatatype.A, dns.rdatatype.AAAA):
+                ans += [x.to_text() for x in rrset.items]
 
-    return addrs
+    if len(ans) == 0:
+        raise exceptions.LookupError(host)
+    return ans
+
+
+def addresses(list_of_names):
+    return sum((addr_insecure(x, can_ipv6) for x in list_of_names), [])
 
 
 def query(name, rdtype, dnssec=False, raise_on_no_answer=True,
@@ -191,21 +204,6 @@ def query(name, rdtype, dnssec=False, raise_on_no_answer=True,
             raise exceptions.NoDNSSEC('No AD flag from resolver')
 
     return answer
-
-
-def ns_addr_insecure(nameserver):
-    """Find the nameserver's possible IP addresses. No DNSSEC
-    is required here, we'll just validate the end result."""
-    ans = []
-    for rdtype in (dns.rdatatype.A, dns.rdatatype.AAAA):
-        ret = query(nameserver, rdtype, raise_on_no_answer=False)
-        for rrset in ret.response.answer:
-            if rrset.rdtype in (dns.rdatatype.A, dns.rdatatype.AAAA):
-                ans += [x.to_text() for x in rrset.items]
-
-    if len(ans) == 0:
-        raise exceptions.NsLookupError(nameserver)
-    return ans
 
 
 class Future:
@@ -389,7 +387,7 @@ class Resolver:
             if ip_family(addr):
                 addr = (addr, 53,)
             else:
-                addr = (ns_addr_insecure(addr)[0], 53)
+                addr = (addr_insecure(addr)[0], 53)
 
         req = dns.message.make_query(qname, rdtype, rdclass)
         opts = []

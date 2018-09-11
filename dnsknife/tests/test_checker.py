@@ -37,7 +37,8 @@ class FakeFuture:
         return fake_answer(self.name, self.rdtype, self.rvalues)
 
 
-@mock.patch('dnsknife.resolver.ns_addrs_for', return_value=['1.2.3.4'])
+
+@mock.patch('dnsknife.resolver.ns_for', return_value=['before.ten.pm', 'after.ten.pm'])
 @mock.patch('dnsknife.resolver.Resolver.query_at')
 class TestChecker(unittest.TestCase):
     def test_txt(self, rmock, cmock):
@@ -46,17 +47,20 @@ class TestChecker(unittest.TestCase):
         self.assertEqual(checker.txt(), 'pouet')
 
     def test_query_nodnssec(self, rmock, cmock):
-        Checker('ten.pm').query('ten.pm', 'A')
+        with mock.patch('dnsknife.resolver.addresses', return_value=['1.2.3.4']):
+            Checker('ten.pm').query('ten.pm', 'A')
         cmock.assert_called_with('ten.pm', False)
         rmock.assert_called_with('ten.pm', 'A', '1.2.3.4', False)
 
     def test_query_dnssec(self, rmock, cmock):
-        Checker('ten.pm', dnssec=True).query('ten.pm', 'A')
+        with mock.patch('dnsknife.resolver.addresses', return_value=['1.2.3.4']):
+            Checker('ten.pm', dnssec=True).query('ten.pm', 'A')
         cmock.assert_called_with('ten.pm', True)
         rmock.assert_called_with('ten.pm', 'A', '1.2.3.4', True)
 
     def test_query_relative(self, rmock, cmock):
-        Checker('ten.pm').query_relative('www', 'A')
+        with mock.patch('dnsknife.resolver.addresses', return_value=['1.2.3.4']):
+            Checker('ten.pm').query_relative('www', 'A')
         rmock.assert_called_with(dns.name.from_text('www.ten.pm'),
                                  'A', '1.2.3.4', False)
 

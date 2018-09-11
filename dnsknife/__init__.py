@@ -63,6 +63,7 @@ class TypeAware(object):
             return self.partial_query(name)
         return super(TypeAware, self).__getattribute__(name)
 
+
 class Checker(TypeAware):
     def __init__(self, domain, dnssec=False, direct=True,
                  errors=None, nameservers=None):
@@ -83,8 +84,7 @@ class Checker(TypeAware):
     @property
     def ns_addrs(self):
         if not self._ns_addrs:
-            self._ns_addrs = self.nameservers \
-                or resolver.ns_addrs_for(self.domain, self.dnssec)
+            self._ns_addrs = self.nameservers or resolver.addresses(self.ns)
         return self._ns_addrs
 
     def set_nameservers(self, ns):

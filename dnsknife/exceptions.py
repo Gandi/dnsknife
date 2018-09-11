@@ -28,6 +28,10 @@ class BadCDNSKEY(Exception):
     pass
 
 
+class LookupError(Exception):
+    pass
+
+
 class NsLookupError(Exception):
     pass
 
