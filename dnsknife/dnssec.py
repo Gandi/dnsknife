@@ -1,4 +1,5 @@
 import dns
+from dns.dnssec import key_id
 from . import exceptions
 
 
@@ -48,7 +49,7 @@ def signed_by(answer, dnskey):
     rrset, rrsig = rrset_rrsig(answer.response)
 
     for sig in rrsig:
-        if sig.key_tag == dns.dnssec.key_id(dnskey):
+        if sig.key_tag == key_id(dnskey):
             try:
                 dns.dnssec.validate_rrsig(rrset, sig, {sig.signer: [dnskey]})
                 return True, None
@@ -68,7 +69,7 @@ def trusted(answer, raise_on_errors=False):
             sig, key_errs = signed_by(answer, key)
             if sig:
                 return True
-            errs[dns.dnssec.key_id(key)] = key_errs
+            errs[key_id(key)] = key_errs
 
     if raise_on_errors:
         raise exceptions.NoTrust(errs)
