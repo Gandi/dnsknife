@@ -28,6 +28,10 @@ class BadCDNSKEY(Exception):
     pass
 
 
+class NSDisagree(Exception):
+    """NServers do not have the same info"""
+
+
 class LookupError(Exception):
     pass
 

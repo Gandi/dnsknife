@@ -17,6 +17,7 @@ from __future__ import absolute_import
 
 import contextlib
 import hashlib
+import random
 
 import dns.dnssec
 import dns.exception
@@ -64,16 +65,68 @@ class TypeAware(object):
         return super(TypeAware, self).__getattribute__(name)
 
 
+class QueryStrategy:
+    def __init__(self, checker):
+        self.checker = checker
+
+
+class QueryStrategyAny(QueryStrategy):
+    """First NS with an answer that is good for us"""
+    def query(self, name, rdtype, timeout):
+        answers = []
+        for ns in self.checker.ns:
+            addr = random.choice(resolver.addresses([ns]))
+            with resolver.Resolver(timeout) as r:
+                answers.append(r.query_at(name, rdtype, addr,
+                                          self.checker.dnssec))
+
+        raised = None
+        for ans in answers:
+            try:
+                return ans.get()
+            except Exception as e:
+                raised = e
+                pass
+
+        if raised:
+            raise raised
+
+def same_answer(a, b):
+    #XXX find a better definition sometime
+    return [str(x) for x in sorted(a)] == [str(x) for x in sorted(b)]
+
+
+class QueryStrategyAll(QueryStrategy):
+    """Ensure answer is the same on all NS"""
+    def query(self, name, rdtype, timeout):
+        answers = []
+        with resolver.Resolver(timeout) as r:
+            for ns in self.checker.ns:
+                addr = random.choice(resolver.addresses([ns]))
+                answers.append(r.query_at(name, rdtype, addr,
+                                          self.checker.dnssec))
+
+        for a, b in zip(answers, answers[1:]):
+            if not same_answer(a.get(), b.get()):
+                raise exceptions.NSDisagree('%s != %s' % (a, b))
+
+        return answers[0].get()
+
+
 class Checker(TypeAware):
     def __init__(self, domain, dnssec=False, direct=True,
-                 errors=None, nameservers=None):
+                 errors=None, nameservers=None, query_strategy=QueryStrategyAny):
         self.domain = domain
         self.dnssec = dnssec
         self.direct = direct
         self.err_fn = errors
         self.nameservers = nameservers
-        self._ns_addrs = None
+        self.query_strategy = query_strategy(self)
         self._ns = None
+
+    def with_query_strategy(self, qs):
+        return Checker(self.domain, self.dnssec, self.direct,
+                self.err_fn, self.nameservers, qs)
 
     @property
     def ns(self):
@@ -81,36 +134,10 @@ class Checker(TypeAware):
             self._ns = resolver.ns_for(self.domain, self.dnssec)
         return self._ns
 
-    @property
-    def ns_addrs(self):
-        if not self._ns_addrs:
-            self._ns_addrs = self.nameservers or resolver.addresses(self.ns)
-        return self._ns_addrs
-
-    def set_nameservers(self, ns):
-        self.ns_addrs = ns
-
-    def query_at(self, qname, rdtype, nameserver, timeout=2):
-        """Lookup, but explicitely sends a packet to the selected
-        nameserver."""
-        with resolver.Resolver(timeout) as r:
-            ans = r.query_at(qname, rdtype, nameserver, self.dnssec)
-        return ans.get()
-
-    def query(self, name, rdtype):
+    def query(self, name, rdtype, timeout=2):
         """Lookup."""
         if self.direct:
-            raised = None
-            for ns in self.ns_addrs:
-                try:
-                    return self.query_at(name, rdtype, ns)
-                except Exception as e:
-                    raised = e
-                    pass
-
-            if raised:
-                raise raised
-
+            return self.query_strategy.query(name, rdtype, timeout)
         return resolver.query(name, rdtype, self.dnssec)
 
     def query_relative(self, name, rdtype):
@@ -231,6 +258,7 @@ class Checker(TypeAware):
 
     def cdnskey(self):
         """ 1. All NS should agree on the CDS set
+                -> Ensured via QueryStrategyAll
             2. Presence of 0 algorithm means remove everything
             2. DNSKEY RRSET should include the appropriate keys
             4. Older CDS should not overwrite newer DATA (DS)
@@ -240,63 +268,27 @@ class Checker(TypeAware):
                to properly set dnssec validation if needed. That allows
                reporting/.. and initial DS install.
         """
-        cds = {}
-        ckeys = {}
-        dnskeys = {}
+        # 1. All NS have the same set - check CDS records
+        # First, raise if no DNSKEY records
+        dnskeys = self.query(self.domain, 'DNSKEY')
+        ckeys = []
+        cds = []
+        try:
+            cds = self.query(self.domain, 'CDS')
+            ckeys = self.query(self.domain, 'CDNSKEY')
+        except dns.resolver.NoAnswer:
+            ckeys = [dnssec.matching_key(dnskeys, ds) for ds in cds]
 
-        final_ckeys = []
-        final_dnskeys = None
-
-        with resolver.Resolver(timeout=5) as r:
-            for ns in self.ns_addrs:
-                dnskeys[ns] = r.query_at(self.domain, dns.rdatatype.DNSKEY,
-                                         ns, self.dnssec)
-                ckeys[ns] = r.query_at(self.domain, dns.rdatatype.CDNSKEY,
-                                     ns, self.dnssec)
-                cds[ns] = r.query_at(self.domain, dns.rdatatype.CDS,
-                                     ns, self.dnssec)
-
-        for ns in self.ns_addrs:
-            dnskeys[ns] = dnskeys[ns].get()
-
-            try:
-                ckeys[ns] = ckeys[ns].get()
-            except dns.resolver.NoAnswer:
-                cds[ns] = cds[ns].get() # Let raise, at least one of those
-                                        # needs to be set
-                ckeys[ns] = [dnssec.matching_key(dnskeys[ns], ds) for ds
-                             in cds[ns]]
-
-            # We need all keys in the DNSKEY RRSET
-            if not all(ckeys[ns]):
-                failed = [ds for ds in cds[ns] if not
-                          dnssec.matching_key(dnskeys[ns], ds)]
-                raise exceptions.BadCDNSKEY('{} not in '
-                                            'DNSKEY RRSET'.format(failed))
-
-            # 1. All NS should have the same DNSKEY RRs
-            if final_dnskeys:
-                if set(dnskeys[ns]) != set(final_dnskeys):
-                    errstr = ('{} disagrees on DNSKEYS '
-                              'RRSET ({}!={})'.format(ns, set(dnskeys[ns]),
-                                                      final_dnskeys))
-                    raise exceptions.BadCDNSKEY(errstr)
-
-            # 1. All NS should have the same CDS/CDNSKEY RRs
-            if final_ckeys:
-                if set(ckeys[ns]) != set(final_ckeys):
-                    errstr = ('{} disagrees on CDNSKEY/CDS '
-                              'RRSet ({}!={})'.format(ns, set(ckeys[ns]),
-                                                      final_ckeys))
-                    raise exceptions.BadCDNSKEY(errstr)
-
-            final_dnskeys = dnskeys[ns]
-            final_ckeys = ckeys[ns]
+        if not all(ckeys):
+            # If any None in there, we have non matching keys
+            failed = [ds for ds in cds if not dnssec.matching_key(dnskeys, ds)]
+            raise exceptions.BadCDNSKEY('{} not in '
+                                        'DNSKEY RRSET'.format(failed))
 
         # 2. 0 is a deletion, but don't allow more than one key
         # in that case
-        if any(key.algorithm == 0 for key in final_ckeys):
-            if len(final_ckeys) == 1:
+        if any(key.algorithm == 0 for key in ckeys):
+            if len(ckeys) == 1:
                 # Special case delete
                 raise exceptions.DeleteDS
             else:
@@ -305,11 +297,11 @@ class Checker(TypeAware):
 
         # 3. Double check the new key is also signing the zone,
         # otherwise pushing the DS would break things
-        for key in final_ckeys:
-            sig, errs = dnssec.signed_by(final_dnskeys, key)
+        for key in ckeys:
+            sig, errs = dnssec.signed_by(dnskeys, key)
             if not sig:
                 errstr = ('{} did not sign '
                         'DNSKEY RR (errs:{})'.format(key, errs))
                 raise exceptions.BadCDNSKEY(errstr)
 
-        return final_ckeys
+        return ckeys
