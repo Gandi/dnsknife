@@ -2,45 +2,50 @@ from dns.resolver import NoAnswer  # noqa
 from dns.exception import Timeout  # noqa
 
 
-class BadAnswer(Exception):
+class Error(Exception):
+    """Most problems raised from this module"""
+    pass
+
+
+class BadAnswer(Error):
     """On low level errors"""
     pass
 
 
-class NoDNSSEC(Exception):
+class NoDNSSEC(Error):
     """Whenever the recursive NS we use does not perform DNSSEC
     validation for our lookup, which might be for many reasons"""
 
 
-class NoTrust(Exception):
+class NoTrust(Error):
     """Whenever trusted() fails"""
 
 
-class BadSignerName(Exception):
+class BadSignerName(Error):
     pass
 
 
-class DeleteDS(Exception):
+class DeleteDS(Error):
     """Be explicit about CDNSKEY alg 0 when we have one."""
 
 
-class BadCDNSKEY(Exception):
+class BadCDNSKEY(Error):
     pass
 
 
-class NSDisagree(Exception):
+class NSDisagree(Error):
     """NServers do not have the same info"""
 
 
-class LookupError(Exception):
+class LookupError(Error):
     pass
 
 
-class NsLookupError(Exception):
+class NsLookupError(Error):
     pass
 
 
-class BadRcode(Exception):
+class BadRcode(Error):
     pass
 
 
