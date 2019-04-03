@@ -115,18 +115,30 @@ class QueryStrategyAll(QueryStrategy):
 
 class Checker(TypeAware):
     def __init__(self, domain, dnssec=False, direct=True,
-                 errors=None, nameservers=None, query_strategy=QueryStrategyAny):
+                 errors=None, nameservers=None,
+                 query_strategy_class=QueryStrategyAny):
         self.domain = domain
         self.dnssec = dnssec
         self.direct = direct
         self.err_fn = errors
         self.nameservers = nameservers
-        self.query_strategy = query_strategy(self)
+        self.query_strategy_class = query_strategy_class
+        self.query_strategy = query_strategy_class(self)
         self._ns = None
 
-    def with_query_strategy(self, qs):
+    def with_query_strategy(self, qs_class):
         return Checker(self.domain, self.dnssec, self.direct,
-                self.err_fn, self.nameservers, qs)
+                self.err_fn, self.nameservers, qs_class)
+
+    def at_parent(self):
+        ##XXX maybe use a strategy instead - this is hackish
+        parent = dns.name.from_text(self.domain).parent().to_text()
+        parent_ns = Checker(parent).ns
+        new_checker = Checker(self.domain, self.dnssec, self.direct,
+                self.err_fn, self.nameservers, self.query_strategy_class)
+
+        new_checker._ns = parent_ns
+        return new_checker
 
     @property
     def ns(self):
