@@ -435,7 +435,7 @@ class Resolver:
                 if ev & (select.POLLERR | select.POLLHUP):
                     self.unregister(fd)
 
-        for fd, future in self.futures.items():
+        for fd, future in list(self.futures.items()):
             if future.ready():
                 self.unregister(fd)
 
