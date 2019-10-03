@@ -231,9 +231,11 @@ class Checker(TypeAware):
 
     def txt_spf(self):
         """Return first TXT/spf record for domain"""
-        for rec in self.txt():
-            if rec.startswith('v=spf'):
-                return rec
+        txt = self.txt()
+        if txt:
+            for rec in txt.split("\n"):        
+                if rec.startswith('v=spf'):
+                    return rec
 
     def spf(self):
         try:
