@@ -93,7 +93,16 @@ class QueryStrategyAny(QueryStrategy):
 
 def same_answer(a, b):
     #XXX find a better definition sometime
-    return [str(x) for x in sorted(a)] == [str(x) for x in sorted(b)]
+    res1 = []
+    res2 = []
+
+    try:
+        res1 = a.get()
+        res2 = b.get()
+    except exceptions.NoAnswer:
+        pass
+
+    return [str(x) for x in sorted(res1)] == [str(x) for x in sorted(res2)]
 
 
 class QueryStrategyAll(QueryStrategy):
@@ -107,7 +116,7 @@ class QueryStrategyAll(QueryStrategy):
                                           self.checker.dnssec))
 
         for a, b in zip(answers, answers[1:]):
-            if not same_answer(a.get(), b.get()):
+            if not same_answer(a, b):
                 raise exceptions.NSDisagree('%s != %s' % (a, b))
 
         return answers[0].get()
