@@ -11,7 +11,8 @@ with open(os.path.join(here, 'dnsknife/__init__.py')) as v_file:
 
 requires = [
     'requests',
-    'pycrypto',
+    'pycryptodome',
+    'ecdsa',
     'six'
 ]
 

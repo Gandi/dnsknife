@@ -48,17 +48,17 @@ class TestChecker(unittest.TestCase):
     def test_no_cds(self, rmock, cmock):
         rmock.side_effect = empty_cds_query
         ret = Checker('ten.pm',
-                query_strategy=QueryStrategyAll).cdnskey()
+                query_strategy_class=QueryStrategyAll).cdnskey()
         self.assertEqual([], ret)
 
     def test_cds_not_signed(self, rmock, cmock):
         rmock.side_effect = unsigned_cds_query
         self.assertRaises(exceptions.BadCDNSKEY, Checker('rdap.lol.',
-                query_strategy=QueryStrategyAll).cdnskey)
+                query_strategy_class=QueryStrategyAll).cdnskey)
 
     def test_cds_valid(self, rmock, cmock):
         rmock.side_effect = valid_cds_query
         with mock.patch('time.time', return_value=1536464380) as mock_time:
             ret = Checker('rdap.lol.',
-                    query_strategy=QueryStrategyAll).cdnskey()
+                    query_strategy_class=QueryStrategyAll).cdnskey()
             self.assertEqual('257 3 13 DFRmw9H+ClMblCxRqLOo3/OHOiWs9QK4 1FVSYK0Zqcin9l25Wp2bW7IyzKMatUgu pnr3O19uiZPXWqTPoY9Q8A==', str(ret[0]))

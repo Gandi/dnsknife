@@ -92,13 +92,13 @@ class TestChecker(unittest.TestCase):
         rmock.side_effect = inconsistent_at_ns
         try:
             ret = Checker('ten.pm',
-                query_strategy=QueryStrategyAll).txt()
-            raise('Expected NSDisagree')
+                query_strategy_class=QueryStrategyAll).txt()
+            raise Exception('Expected NSDisagree, got %s' % ret)
         except exceptions.NSDisagree:
             pass
 
     def test_query_strategy_all_ok(self, rmock, cmock):
         rmock.side_effect = consistent_at_ns
         ret = Checker('ten.pm',
-                query_strategy=QueryStrategyAll).txt()
+                query_strategy_class=QueryStrategyAll).txt()
         self.assertEqual('SameTXT', ret)
