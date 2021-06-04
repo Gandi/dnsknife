@@ -88,5 +88,4 @@ def matching_key(dnskeys, ds):
         candidate = dns.dnssec.make_ds(dnskeys.name, k, dtype)
         if candidate.digest == ds.digest:
             # Special case for CDS alg 0
-            k.algorithm = ds.algorithm
-            return k
+            return k.replace(algorithm=ds.algorithm)

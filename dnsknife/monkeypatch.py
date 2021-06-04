@@ -1,35 +1,3 @@
-import dns.name
-import dns.rdata
-import dns.rdataclass
-import dns.rdatatype
-import dns.rdtypes.ANY.DS
-import dns.rdtypes.ANY.DNSKEY
-
-dns.rdatatype.CDS = 59
-dns.rdatatype._by_text['CDS'] = dns.rdatatype.CDS
-dns.rdatatype._by_value[59] = 'CDS'
-
-dns.rdatatype.CDNSKEY = 60
-dns.rdatatype._by_text['CDNSKEY'] = dns.rdatatype.CDNSKEY
-dns.rdatatype._by_value[60] = 'CDNSKEY'
-
-dns.rdata._rdata_modules[(dns.rdataclass.IN,
-                          dns.rdatatype.CDS)] = dns.rdtypes.ANY.DS
-dns.rdtypes.ANY.DS.CDS = dns.rdtypes.ANY.DS.DS
-
-dns.rdata._rdata_modules[(dns.rdataclass.IN,
-                          dns.rdatatype.CDNSKEY)] = dns.rdtypes.ANY.DNSKEY
-dns.rdtypes.ANY.DNSKEY.CDNSKEY = dns.rdtypes.ANY.DNSKEY.DNSKEY
-
-if not hasattr(dns.rdatatype, 'URI'):
-    dns.rdatatype.URI = 256
-    dns.rdatatype._by_text['URI'] = dns.rdatatype.URI
-    dns.rdata.GenericRdata.target = property(lambda x: x.data[4:])
-
-# For pickle/unpickle
-
-del dns.name.Name.__setattr__
-
 # Select.poll is not always available
 
 class Poll:
