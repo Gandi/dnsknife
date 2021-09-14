@@ -60,7 +60,7 @@ class TypeAware(object):
         return query_with_default_name
 
     def __getattribute__(self, name):
-        if name in dns.rdatatype._by_text.keys():
+        if name in dns.rdatatype.RdataType.__members__:
             return self.partial_query(name)
         return super(TypeAware, self).__getattribute__(name)
 
